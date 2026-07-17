@@ -5,6 +5,9 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>school_erp</RootNamespace>
+    <!-- Space-free output name so IIS/MonsterASP in-process hosting can launch
+         the DLL cleanly (a space in "school erp.dll" breaks the AspNetCore handler). -->
+    <AssemblyName>SchoolErpApi</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>

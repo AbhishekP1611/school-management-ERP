@@ -46,11 +46,27 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
-// ── CORS (allow React dev server) ─────────────────────────────
+// ── CORS (allow the frontend) ─────────────────────────────────
+// Local dev origins are always allowed. Production/hosted frontend origins
+// (e.g. the Vercel URL) are supplied via the SCHOOLERP_CORS_ORIGINS env var
+// as a comma-separated list, so the deployed URL never has to be hard-coded.
+var corsOrigins = new List<string>
+{
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "https://school-management-erp-lime.vercel.app",
+};
+var extraOrigins = Environment.GetEnvironmentVariable("SCHOOLERP_CORS_ORIGINS");
+if (!string.IsNullOrWhiteSpace(extraOrigins))
+{
+    corsOrigins.AddRange(extraOrigins
+        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+}
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("ReactApp", policy =>
-        policy.WithOrigins("http://localhost:5173", "http://localhost:3000")
+        policy.WithOrigins(corsOrigins.ToArray())
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials());
@@ -100,7 +116,13 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors("ReactApp");
-app.UseHttpsRedirection();
+// HTTPS redirection only in local dev. On the host (MonsterASP) TLS is
+// terminated at the proxy and the app is reached over plain HTTP internally,
+// so forcing a redirect here causes redirect loops / 500s.
+if (app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 app.UseAuthentication();
 app.UseAuthorization();
 
