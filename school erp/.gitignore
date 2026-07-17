@@ -1,0 +1,2 @@
+# Local secrets — never commit
+appsettings.Development.json

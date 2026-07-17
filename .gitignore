@@ -1,0 +1,43 @@
+# ============================================================
+#  School ERP — root .gitignore
+#  Keeps secrets, dependencies, and build output OUT of git.
+# ============================================================
+
+# ---- SECRETS (NEVER commit) ----
+**/appsettings.Development.json
+**/appsettings.Production.json
+**/appsettings.*.Local.json
+*.env
+.env
+.env.*
+!.env.example
+
+# ---- .NET backend build output ----
+**/bin/
+**/obj/
+**/out/
+*.user
+.vs/
+
+# ---- Node / Next.js frontend ----
+**/node_modules/
+**/.next/
+**/build/
+**/dist/
+**/.vercel/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ---- OS / editor junk ----
+.DS_Store
+__MACOSX/
+Thumbs.db
+*.swp
+
+# ---- Claude / local tooling ----
+.claude/
+
+# ---- Uploaded files (user content, not source) ----
+**/uploads/
+**/wwwroot/uploads/
