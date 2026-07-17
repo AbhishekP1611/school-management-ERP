@@ -15,8 +15,12 @@ export function getDeviceId() {
   } catch { return null; }
 }
 
+// Backend base URL. Local dev defaults to localhost; the hosted frontend
+// sets NEXT_PUBLIC_API_URL (e.g. https://apischoolerp.runasp.net/api) in Vercel.
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5099/api';
+
 const API = axios.create({
-  baseURL: 'http://localhost:5099/api',
+  baseURL: API_BASE,
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -77,7 +81,7 @@ async function maybeRefresh(token) {
   if (secondsLeft(token) > REFRESH_THRESHOLD) return;
   if (refreshing) return refreshing;
   refreshing = axios
-    .post('http://localhost:5099/api/auth/refresh', {}, { headers: { Authorization: `Bearer ${token}` } })
+    .post(`${API_BASE}/auth/refresh`, {}, { headers: { Authorization: `Bearer ${token}` } })
     .then((res) => {
       if (res.data?.token) {
         localStorage.setItem('token', res.data.token);

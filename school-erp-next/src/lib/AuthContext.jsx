@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { isTokenExpired } from './api';
+import { isTokenExpired, API_BASE } from './api';
 import { showError } from './alert';
 
 const AuthContext = createContext(null);
@@ -49,7 +49,7 @@ export function AuthProvider({ children }) {
     try {
       const token = localStorage.getItem('token');
       if (token) {
-        fetch('http://localhost:5099/api/auth/logout', {
+        fetch(`${API_BASE}/auth/logout`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}` },
           keepalive: true,
