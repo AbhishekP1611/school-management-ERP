@@ -210,4 +210,129 @@ public class StudentLookupController : ControllerBase
 
         return Ok(new { year, profile, exams, fees, library, transport = busAssign, supplementary = supp, attendance });
     }
+
+    // GET api/student-lookup/weakness?studentId=&year=2026-27
+    // Rule-based (no external AI) analysis of a student's yearly results:
+    // which subjects they're weak in, HOW weak (vs class average), and the
+    // per-exam trend (improving / declining). Returns a ready-to-render report.
+    [HttpGet("weakness")]
+    [RequirePermission("StudentLookup", PermAction.View)]
+    public async Task<IActionResult> Weakness([FromQuery] int studentId, [FromQuery] string year)
+    {
+        var s = await _db.Students.Include(x => x.Class).FirstOrDefaultAsync(x => x.StudentId == studentId);
+        if (s == null) return NotFound(new { message = "Student not found." });
+        if (!User.CanAccessUnit(s.UnitId)) return Forbid();
+        if (string.IsNullOrWhiteSpace(year)) year = AcademicYearHelper.Current();
+
+        var name = s.FirstName + " " + s.LastName;
+
+        // This student's results for the year (subject + which exam + marks).
+        var mine = await _db.Results
+            .Where(r => r.StudentId == studentId && r.ExamSubject!.Exam!.AcademicYear == year)
+            .Select(r => new
+            {
+                subject  = r.ExamSubject!.Subject != null ? r.ExamSubject.Subject.SubjectName : "—",
+                examName = r.ExamSubject.Exam!.ExamName,
+                marks    = r.MarksObtained,
+                max      = r.ExamSubject.MaxMarks,
+                passing  = r.ExamSubject.PassingMarks,
+                absent   = r.IsAbsent,
+                classId  = r.ExamSubject.Exam.ClassId
+            })
+            .ToListAsync();
+
+        if (mine.Count == 0)
+            return Ok(new { studentId, name, year, hasData = false,
+                message = $"No exam results found for {name} in {year}, so a weakness analysis can't be generated yet." });
+
+        // The class this student sat exams in (for the class-average comparison).
+        var classIds = mine.Select(m => m.classId).Distinct().ToList();
+
+        // Class averages per subject: every student's result for the same subjects/year/class.
+        var classRows = await _db.Results
+            .Where(r => r.ExamSubject!.Exam!.AcademicYear == year
+                     && classIds.Contains(r.ExamSubject.Exam.ClassId)
+                     && !r.IsAbsent && r.MarksObtained != null)
+            .Select(r => new
+            {
+                subject = r.ExamSubject!.Subject != null ? r.ExamSubject.Subject.SubjectName : "—",
+                pct     = r.ExamSubject.MaxMarks > 0 ? (double)(r.MarksObtained!.Value / r.ExamSubject.MaxMarks) * 100 : 0
+            })
+            .ToListAsync();
+
+        var classAvgBySubject = classRows
+            .GroupBy(r => r.subject)
+            .ToDictionary(g => g.Key, g => Math.Round(g.Average(x => x.pct), 1));
+
+        // Per-subject rollup for THIS student (average % across the year's exams).
+        var subjects = mine
+            .GroupBy(m => m.subject)
+            .Select(g =>
+            {
+                var taken = g.Where(x => !x.absent && x.marks != null && x.max > 0).ToList();
+                double avgPct = taken.Count > 0
+                    ? Math.Round(taken.Average(x => (double)(x.marks!.Value / x.max) * 100), 1) : 0;
+                double classAvg = classAvgBySubject.TryGetValue(g.Key, out var ca) ? ca : 0;
+                int absents = g.Count(x => x.absent);
+
+                // Per-exam trend (chronological-ish by exam name order they appear).
+                var trend = g.Where(x => !x.absent && x.marks != null && x.max > 0)
+                             .Select(x => new { x.examName, pct = Math.Round((double)(x.marks!.Value / x.max) * 100, 1) })
+                             .ToList();
+                string trendDir = "steady";
+                if (trend.Count >= 2)
+                {
+                    var diff = trend.Last().pct - trend.First().pct;
+                    trendDir = diff <= -8 ? "declining" : diff >= 8 ? "improving" : "steady";
+                }
+
+                // Weakness level: absolute score + gap vs class average.
+                double gap = Math.Round(avgPct - classAvg, 1);   // negative = below class
+                string level;
+                if (avgPct < 35) level = "critical";
+                else if (avgPct < 50 || gap <= -20) level = "weak";
+                else if (avgPct < 60 || gap <= -10) level = "borderline";
+                else level = "ok";
+
+                return new { subject = g.Key, avgPct, classAvg, gap, trend = trendDir, absents, level };
+            })
+            .OrderBy(x => x.avgPct)   // weakest first
+            .ToList();
+
+        var weak = subjects.Where(x => x.level == "critical" || x.level == "weak").ToList();
+        var borderline = subjects.Where(x => x.level == "borderline").ToList();
+        var strong = subjects.Where(x => x.avgPct >= 75).OrderByDescending(x => x.avgPct).ToList();
+
+        double overallPct = Math.Round(subjects.Average(x => x.avgPct), 1);
+
+        // Build human-readable suggestions.
+        var tips = new List<string>();
+        foreach (var w in weak)
+        {
+            var howMuch = w.gap <= -20 ? $"far below the class average ({w.classAvg}%)"
+                        : w.gap < 0 ? $"below the class average ({w.classAvg}%)"
+                        : "low overall";
+            var trendNote = w.trend == "declining" ? " and the scores are dropping across exams" : "";
+            tips.Add($"{w.subject}: {w.avgPct}% — {howMuch}{trendNote}. Needs focused practice.");
+        }
+        foreach (var b in borderline.Where(x => x.trend == "declining"))
+            tips.Add($"{b.subject}: {b.avgPct}% and slipping — keep an eye on it before it drops further.");
+        if (weak.Count == 0 && borderline.Count == 0)
+            tips.Add("No weak subjects — the student is performing well across the board. Keep it up!");
+
+        var summary = weak.Count > 0
+            ? $"{name} is weakest in {string.Join(", ", weak.Take(3).Select(w => $"{w.subject} ({w.avgPct}%)"))}."
+            : $"{name} has no seriously weak subjects this year (overall {overallPct}%).";
+
+        return Ok(new
+        {
+            studentId, name, year, hasData = true,
+            className = s.Class != null ? s.Class.ClassName + " (" + s.Class.Section + ")" : "—",
+            overallPct,
+            summary,
+            weak, borderline, strong,
+            allSubjects = subjects,
+            suggestions = tips
+        });
+    }
 }

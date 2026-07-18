@@ -23,6 +23,8 @@ export default function StudentLookupBot({ onClose }) {
   const [year, setYear] = useState('');
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [weakness, setWeakness] = useState(null);       // AI weakness analysis
+  const [weakLoading, setWeakLoading] = useState(false);
   const deb = useRef(null);
 
   // default the year filter to the current academic year
@@ -53,7 +55,7 @@ export default function StudentLookupBot({ onClose }) {
   }, [q, filterYear, filterClass, picked]);
 
   const pick = async (s) => {
-    setPicked(s); setResults([]); setDetail(null);
+    setPicked(s); setResults([]); setDetail(null); setWeakness(null);
     try {
       const r = await API.get(`/student-lookup/years?studentId=${s.studentId}`);
       const ys = r.data || [];
@@ -73,7 +75,19 @@ export default function StudentLookupBot({ onClose }) {
 
   useEffect(() => { loadDetail(); }, [loadDetail]);
 
-  const reset = () => { setPicked(null); setDetail(null); setQ(''); setResults([]); setYears([]); };
+  // Clear any old analysis when the student/year changes.
+  useEffect(() => { setWeakness(null); }, [picked, year]);
+
+  const runWeakness = () => {
+    if (!picked || !year) return;
+    setWeakLoading(true);
+    API.get(`/student-lookup/weakness?studentId=${picked.studentId}&year=${year}`)
+      .then((r) => setWeakness(r.data))
+      .catch(() => setWeakness({ hasData: false, message: "Couldn't analyze this student's results." }))
+      .finally(() => setWeakLoading(false));
+  };
+
+  const reset = () => { setPicked(null); setDetail(null); setWeakness(null); setQ(''); setResults([]); setYears([]); };
 
   return (
     <div className="bot-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -150,6 +164,59 @@ export default function StudentLookupBot({ onClose }) {
               : !detail ? <div className="bot-hint">Couldn't load details.</div>
               : (
                 <div className="bot-detail">
+                  {/* AI Weakness Analysis */}
+                  <div className="bot-ai-card">
+                    <div className="bot-ai-head">
+                      <span className="bot-ai-title">🤖 AI Weakness Analysis</span>
+                      {!weakness && (
+                        <button className="bot-ai-btn" onClick={runWeakness} disabled={weakLoading}>
+                          {weakLoading ? <><span className="loading-spinner" /> Analyzing…</> : 'Analyze results'}
+                        </button>
+                      )}
+                    </div>
+
+                    {weakness && !weakness.hasData && (
+                      <div className="bot-hint">{weakness.message}</div>
+                    )}
+
+                    {weakness && weakness.hasData && (
+                      <div className="bot-ai-body">
+                        <div className="bot-ai-summary">
+                          {weakness.summary} <span className="bot-ai-overall">Overall {weakness.overallPct}%</span>
+                        </div>
+
+                        {/* Subject bars, weakest first */}
+                        <div className="bot-ai-subjects">
+                          {weakness.allSubjects.map((s) => {
+                            const cls = s.level === 'critical' ? 'crit' : s.level === 'weak' ? 'weak' : s.level === 'borderline' ? 'bord' : 'ok';
+                            return (
+                              <div key={s.subject} className={`bot-ai-sub ${cls}`}>
+                                <div className="bot-ai-sub-top">
+                                  <span className="bot-ai-sub-name">{s.subject}</span>
+                                  <span className="bot-ai-sub-pct">{s.avgPct}%</span>
+                                </div>
+                                <div className="bot-ai-bar"><div style={{ width: `${Math.min(100, s.avgPct)}%` }} /></div>
+                                <div className="bot-ai-sub-meta">
+                                  class avg {s.classAvg}% · {s.gap >= 0 ? `+${s.gap}` : s.gap}% vs class
+                                  {s.trend === 'declining' && <span className="bot-ai-trend down"> ▼ declining</span>}
+                                  {s.trend === 'improving' && <span className="bot-ai-trend up"> ▲ improving</span>}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Suggestions */}
+                        {weakness.suggestions?.length > 0 && (
+                          <div className="bot-ai-tips">
+                            <div className="bot-ai-tips-head">💡 Suggestions</div>
+                            <ul>{weakness.suggestions.map((t, i) => <li key={i}>{t}</li>)}</ul>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
                   {/* Fees */}
                   <Section icon={<IndianRupee size={15} />} title="Fees" accent="#16a34a">
                     <div className="bot-fee-strip">
