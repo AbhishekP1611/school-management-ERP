@@ -14,7 +14,8 @@ export default function LoginPage() {
   const { user, login, ready } = useAuth();
   const { firstRoute, loaded: navLoaded } = useNav();
 
-  const [form, setForm] = useState({ username: '', password: '', unitId: '' });
+  // Demo credentials pre-filled so a portfolio visitor can sign in with one click.
+  const [form, setForm] = useState({ username: 'Admin', password: '123', unitId: '' });
   const [units, setUnits] = useState([]);
   const [errors, setErrors] = useState({});
   const [showPwd, setShowPwd] = useState(false);
