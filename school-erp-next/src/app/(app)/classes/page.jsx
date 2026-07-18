@@ -259,7 +259,8 @@ function ClassDetail({ detail, onClose, reload }) {
         <div className="modal-body">
           {/* Students */}
           {tab === 'Students' && (
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <div className="table-wrapper" style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 560 }}>
               <thead><tr style={{ background: '#f8fafc' }}>{['Roll', 'Student', 'Admission', 'Gender', 'Contact', 'Parent'].map((h) => <th key={h} style={{ padding: '10px 12px', fontSize: 11, fontWeight: 600, textAlign: 'left', color: '#64748b', textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0' }}>{h}</th>)}</tr></thead>
               <tbody>
                 {students.map((s) => (
@@ -278,6 +279,7 @@ function ClassDetail({ detail, onClose, reload }) {
                 {students.length === 0 && <tr><td colSpan="6" className="empty-state">No students in this class.</td></tr>}
               </tbody>
             </table>
+            </div>
           )}
 
           {/* Subjects */}
@@ -304,7 +306,8 @@ function ClassDetail({ detail, onClose, reload }) {
 
           {/* Exams */}
           {tab === 'Exams' && (
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <div className="table-wrapper" style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 420 }}>
               <thead><tr style={{ background: '#f8fafc' }}>{['Exam', 'Subjects'].map((h) => <th key={h} style={{ padding: '10px 12px', fontSize: 11, fontWeight: 600, textAlign: 'left', color: '#64748b', textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0' }}>{h}</th>)}</tr></thead>
               <tbody>
                 {exams.map((e) => (
@@ -316,6 +319,7 @@ function ClassDetail({ detail, onClose, reload }) {
                 {exams.length === 0 && <tr><td colSpan="2" className="empty-state">No exams for this class yet.</td></tr>}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       </div>

@@ -624,7 +624,8 @@ function StudentsInner() {
                           <span>📝 {ex.examName}</span>
                           <span style={{ color: 'var(--primary)', fontSize: 13 }}>Grade {ex.grade} · {ex.percentage}% · {ex.totalObtained}/{ex.totalMax}</span>
                         </div>
-                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <div className="table-wrapper" style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 480 }}>
                           <thead>
                             <tr style={{ background: '#f8fafc' }}>
                               {['Subject', 'Date', 'Max', 'Obtained', 'Result'].map((h, i) => (
@@ -646,6 +647,7 @@ function StudentsInner() {
                             ))}
                           </tbody>
                         </table>
+                        </div>
                       </div>
                     ))
                 )}
@@ -705,7 +707,8 @@ function StudentsInner() {
                   </div>
                 </div>
 
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <div className="table-wrapper" style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 720 }}>
                   <thead>
                     <tr style={{ background: '#f8fafc' }}>
                       {['Type', 'Amount', 'Discount', 'Paid', 'Balance', 'Mode', 'Status', 'Date', ''].map((h, i) => (
@@ -745,6 +748,7 @@ function StudentsInner() {
                     )}
                   </tbody>
                 </table>
+                </div>
 
                 {/* Save button available on the Fees/History tabs in create mode too */}
                 {!editId && (

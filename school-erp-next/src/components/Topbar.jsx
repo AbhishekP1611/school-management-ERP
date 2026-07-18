@@ -50,6 +50,7 @@ export default function Topbar({ onMenuClick }) {
   const [showCal, setShowCal] = useState(false);
   const [showPwd, setShowPwd] = useState(false);
   const [showTheme, setShowTheme] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);   // avatar dropdown (holds logout etc.)
 
   // Live clock — updates every minute for the date/day display.
   const [now, setNow] = useState(() => new Date());
@@ -175,15 +176,70 @@ export default function Topbar({ onMenuClick }) {
           <NotificationBell />
 
           {user && (
-            <div className="topbar-user">
-              <div className="topbar-user-avatar">{user.username?.charAt(0).toUpperCase()}</div>
-              <div className="topbar-user-meta">
-                <div className="topbar-user-name">{user.username}</div>
-                <div className="topbar-user-role">{unit?.unitName || 'Signed in'}</div>
-              </div>
-              <button className="topbar-btn logout" onClick={handleLogout} title="Logout">
+            <div className="topbar-user" style={{ position: 'relative' }}>
+              <button
+                className={`topbar-user-btn ${showUserMenu ? 'active' : ''}`}
+                onClick={() => setShowUserMenu((s) => !s)}
+                aria-label="Account menu"
+              >
+                <div className="topbar-user-avatar">{user.username?.charAt(0).toUpperCase()}</div>
+                <div className="topbar-user-meta">
+                  <div className="topbar-user-name">{user.username}</div>
+                  <div className="topbar-user-role">{unit?.unitName || 'Signed in'}</div>
+                </div>
+              </button>
+              {/* Desktop: logout sits inline next to the avatar. */}
+              <button className="topbar-btn logout topbar-logout-inline" onClick={handleLogout} title="Logout">
                 <LogOut size={18} />
               </button>
+
+              {/* Account dropdown — the reliable home for logout + secondary actions
+                  (so nothing ever gets clipped on mobile). */}
+              {showUserMenu && (
+                <>
+                  <div className="topbar-menu-backdrop" onClick={() => setShowUserMenu(false)} />
+                  <div className="topbar-user-menu">
+                    <div className="topbar-user-menu-head">
+                      <div className="topbar-user-avatar lg">{user.username?.charAt(0).toUpperCase()}</div>
+                      <div style={{ minWidth: 0 }}>
+                        <div className="topbar-user-name">{user.username}</div>
+                        <div className="topbar-user-role">{unit?.unitName || 'Signed in'}</div>
+                      </div>
+                    </div>
+
+                    {/* Unit switch (mobile — the topbar badge is hidden on small screens) */}
+                    {units && units.length > 1 && (
+                      <div className="topbar-menu-field topbar-menu-mobile">
+                        <span className="topbar-menu-label"><Building2 size={13} /> Unit</span>
+                        <select value={activeUnitId || ''} onChange={(e) => { switchUnit(Number(e.target.value)); }}>
+                          {units.map((u) => <option key={u.unitId} value={u.unitId}>{u.unitName}</option>)}
+                        </select>
+                      </div>
+                    )}
+                    {/* Academic year (mobile — hidden in the row on small screens) */}
+                    {yearsLoaded && years.length > 0 && (
+                      <div className="topbar-menu-field topbar-menu-mobile">
+                        <span className="topbar-menu-label"><GraduationCap size={13} /> Year</span>
+                        <select value={year || ''} onChange={(e) => changeYear(e.target.value)}>
+                          {years.map((y) => <option key={y} value={y}>{y}{y === current ? ' (current)' : ''}</option>)}
+                        </select>
+                      </div>
+                    )}
+
+                    <button className="topbar-menu-item" onClick={() => { setShowUserMenu(false); setShowPwd(true); }}>
+                      <KeyRound size={16} /> Change password
+                    </button>
+                    {canSeeCalendar && (
+                      <button className="topbar-menu-item topbar-menu-mobile" onClick={() => { setShowUserMenu(false); setShowCal(true); }}>
+                        <CalendarDays size={16} /> Calendar
+                      </button>
+                    )}
+                    <button className="topbar-menu-item danger" onClick={() => { setShowUserMenu(false); handleLogout(); }}>
+                      <LogOut size={16} /> Logout
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>

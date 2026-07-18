@@ -443,8 +443,50 @@ body {
 }
 .topbar-user-meta { line-height: 1.15; }
 .topbar-user-name { font-size: 13px; font-weight: 600; color: var(--text-primary); }
-.topbar-user-role { font-size: 11px; color: var(--text-muted); }
+.topbar-user-role { font-size: 11px; color: var(--text-muted); max-width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 600px) { .topbar-user-meta { display: none; } }
+
+/* Avatar becomes a button that opens the account dropdown. */
+.topbar-user-btn {
+  display: flex; align-items: center; gap: 10px;
+  background: transparent; border: none; cursor: pointer; padding: 0;
+  color: inherit;
+}
+.topbar-user-avatar.lg { width: 40px; height: 40px; font-size: 16px; }
+
+/* ── Account dropdown (holds logout + secondary actions) ───────── */
+.topbar-menu-backdrop { position: fixed; inset: 0; z-index: 90; }
+.topbar-user-menu {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 100;
+  width: 240px; padding: 8px;
+  background: var(--surface); border: 1px solid var(--border-col);
+  border-radius: 14px; box-shadow: 0 12px 32px rgba(0,0,0,.18);
+}
+.topbar-user-menu-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 8px 10px; margin-bottom: 6px;
+  border-bottom: 1px solid var(--border-col);
+}
+.topbar-menu-item {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 9px 10px; border: none; background: transparent; cursor: pointer;
+  border-radius: 9px; font-size: 13.5px; font-weight: 500;
+  color: var(--text-primary); text-align: left;
+}
+.topbar-menu-item:hover { background: var(--bg-body); }
+.topbar-menu-item.danger { color: #dc2626; }
+.topbar-menu-item.danger:hover { background: rgba(220,38,38,.08); }
+.topbar-menu-field {
+  display: flex; align-items: center; gap: 8px; padding: 6px 10px;
+}
+.topbar-menu-label { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-muted); min-width: 46px; }
+.topbar-menu-field select {
+  flex: 1; min-width: 0; padding: 6px 8px; border-radius: 8px;
+  border: 1px solid var(--border-col); background: var(--bg-body); color: var(--text-primary); font-size: 13px;
+}
+/* Items that only make sense on mobile (their topbar equivalent is visible on desktop). */
+.topbar-menu-mobile { display: none; }
+@media (max-width: 768px) { .topbar-menu-mobile { display: flex; } }
 
 /* ── Cards ─────────────────────────────────────────────────────── */
 .card {
@@ -978,38 +1020,64 @@ th { position: relative; }
   /* The left group (hamburger + title) must never be squeezed away. */
   .topbar-hamburger { margin-right: 2px; }
 
-  /* Trim the topbar-right on phones so it can't overflow and push the hamburger
-     off-screen. Keep the year picker (important) + theme + bell + user; drop the rest. */
+  /* Mobile topbar = lean row: only theme toggle + bell + avatar.
+     Everything else (year, unit switch, password, calendar, LOGOUT) lives in the
+     avatar dropdown, so nothing is ever clipped. */
+  .topbar-right { flex-wrap: nowrap; }
   .topbar-date,
-  .topbar-bot-btn { display: none !important; }
-  /* Compact the year picker so it fits */
-  .topbar-year { padding: 4px 6px; }
-  .topbar-year select { max-width: 84px; padding: 2px; }
+  .topbar-bot-btn,
+  .topbar-year,
+  .topbar-theme-btn,
+  .topbar-pwd-btn,
+  .topbar-cal-btn,
+  .topbar-logout-inline { display: none !important; }
+  .topbar-user-meta { display: none; }
+  .topbar-user { background: transparent; margin-left: 0; padding: 0; }
   /* Shrink the icon buttons a touch */
   .topbar-btn { width: 34px; height: 34px; }
   .topbar-hamburger { width: 34px; height: 34px; }
+  /* dropdown hugs the screen edge nicely */
+  .topbar-user-menu { width: min(88vw, 260px); }
 
-  /* Modals use more of the screen on phones */
-  .modal-overlay { padding: 10px; align-items: flex-end; }
-  .modal, .modal-lg, .modal-md, .modal-sm { max-width: 100%; max-height: 92vh; border-radius: 16px 16px 12px 12px; }
+  /* Modals use more of the screen on phones (student-modal included, and its
+     inline width:80vw is overridden here). */
+  .modal-overlay { padding: 8px; align-items: flex-end; }
+  .modal, .modal-lg, .modal-md, .modal-sm, .student-modal {
+    max-width: 100% !important; width: 100% !important; max-height: 92vh; border-radius: 16px 16px 12px 12px;
+  }
+  /* Any wide table inside a modal scrolls within its own container. */
+  .modal-body { overflow-x: hidden; }
+  .modal-body .table-wrapper { max-width: 100%; }
+
+  /* Search box + toolbar filters shrink to fit the row instead of forcing overflow. */
+  .search-bar input, .search-bar input:focus { width: 100% !important; max-width: none !important; }
+  .search-bar { flex: 1 1 100%; min-width: 0; }
 
   /* Page headers stack (title above the action buttons) */
   .page-header { flex-direction: column; align-items: stretch; gap: 12px; }
+
+  /* Toolbar controls (filters/selects/inputs) go full-width & wrap on phones so
+     nothing with a fixed inline width can push past the screen edge. */
+  .page-actions { flex-wrap: wrap; gap: 8px; }
+  .page-actions > * { flex: 1 1 auto; min-width: 0; }
+  .page-actions select,
+  .page-actions input,
+  .page-actions .form-control { width: 100% !important; min-width: 0 !important; max-width: none !important; }
+  .page-actions .btn { flex: 0 0 auto; }
+  /* generic: any select/date/search in a filter card fits the screen */
+  .card .form-control,
+  .card select.form-control { min-width: 0 !important; }
 
   /* Theme panel fits the screen */
   .theme-panel { width: calc(100vw - 24px); max-width: 340px; }
 }
 
-/* Extra-small phones — drop secondary icons so the row never overflows the hamburger */
+/* Extra-small phones */
 @media (max-width: 480px) {
   .page-body { padding: 10px; }
   .topbar { padding-left: 8px; padding-right: 8px; }
-  .topbar-user-meta { display: none; }
-  /* Keep the row lean but preserve the IMPORTANT controls (theme/colors + password).
-     Only the calendar shortcut is dropped on tiny screens (still reachable in-app). */
-  .topbar-cal-btn { display: none !important; }
   /* let the title give up space first so the icons stay */
-  .topbar-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 34vw; }
+  .topbar-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 40vw; }
 }
 
 /* ── Premium Login (full-screen school hero + centered glass card) ── */
