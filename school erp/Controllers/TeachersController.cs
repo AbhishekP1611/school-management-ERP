@@ -23,11 +23,8 @@ public class TeachersController : ControllerBase
     {
         var query = _db.Teachers.Where(t => t.IsActive).AsQueryable();
 
-        if (!User.IsSuperAdmin())
-        {
-            var unit = User.UnitId();
-            query = query.Where(t => t.UnitId == unit);
-        }
+        var units = User.ScopeUnitIds(HttpContext);
+        query = query.Where(t => t.UnitId != null && units.Contains(t.UnitId.Value));
 
         if (!string.IsNullOrWhiteSpace(search))
             query = query.Where(t =>

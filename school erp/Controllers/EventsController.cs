@@ -23,11 +23,8 @@ public class EventsController : ControllerBase
     public async Task<IActionResult> GetAll([FromQuery] string? type)
     {
         var query = _db.Events.Where(e => e.IsPublished).AsQueryable();
-        if (!User.IsSuperAdmin())
-        {
-            var unit = User.UnitId();
-            query = query.Where(e => e.UnitId == unit);
-        }
+        var units = User.ScopeUnitIds(HttpContext);
+        query = query.Where(e => e.UnitId != null && units.Contains(e.UnitId.Value));
         if (!string.IsNullOrWhiteSpace(type)) query = query.Where(e => e.EventType == type);
 
         var list = await query.OrderBy(e => e.EventDate)

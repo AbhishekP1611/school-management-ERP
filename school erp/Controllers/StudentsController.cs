@@ -84,12 +84,9 @@ public class StudentsController : ControllerBase
             .Where(s => s.IsActive)
             .AsQueryable();
 
-        // Unit scope: non-SuperAdmin sees only their unit's students.
-        if (!User.IsSuperAdmin())
-        {
-            var unit = User.UnitId();
-            query = query.Where(s => s.UnitId == unit);
-        }
+        // Unit scope: user sees only the students of the units they may access.
+        var units = User.ScopeUnitIds(HttpContext);
+        query = query.Where(s => s.UnitId != null && units.Contains(s.UnitId.Value));
 
         if (!string.IsNullOrWhiteSpace(search))
             query = query.Where(s =>

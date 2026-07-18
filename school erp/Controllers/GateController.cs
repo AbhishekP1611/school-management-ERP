@@ -40,11 +40,8 @@ public class GateController : ControllerBase
     private IQueryable<GatePass> Scoped()
     {
         var q = _db.GatePasses.AsQueryable();
-        if (!User.IsSuperAdmin())
-        {
-            var unit = User.UnitId();
-            q = q.Where(g => g.UnitId == unit);
-        }
+        var units = User.ScopeUnitIds(HttpContext);
+        q = q.Where(g => g.UnitId != null && units.Contains(g.UnitId.Value));
         return q;
     }
 
@@ -171,7 +168,8 @@ public class GateController : ControllerBase
         if (string.IsNullOrWhiteSpace(q)) return Ok(Array.Empty<object>());
         var sq = _db.Students.Where(s => s.IsActive &&
             (s.FirstName.Contains(q) || s.LastName.Contains(q) || s.AdmissionNo.Contains(q)));
-        if (!User.IsSuperAdmin()) { var u = User.UnitId(); sq = sq.Where(s => s.UnitId == u); }
+        var units = User.ScopeUnitIds(HttpContext);
+        sq = sq.Where(s => s.UnitId != null && units.Contains(s.UnitId.Value));
         var list = await sq.Include(s => s.Class).OrderBy(s => s.FirstName).Take(10)
             .Select(s => new
             {
@@ -191,7 +189,8 @@ public class GateController : ControllerBase
         if (string.IsNullOrWhiteSpace(q)) return Ok(Array.Empty<object>());
         var tq = _db.Teachers.Where(t => t.IsActive &&
             (t.FirstName.Contains(q) || t.LastName.Contains(q) || t.EmployeeId.Contains(q)));
-        if (!User.IsSuperAdmin()) { var u = User.UnitId(); tq = tq.Where(t => t.UnitId == u); }
+        var units = User.ScopeUnitIds(HttpContext);
+        tq = tq.Where(t => t.UnitId != null && units.Contains(t.UnitId.Value));
         var list = await tq.OrderBy(t => t.FirstName).Take(10)
             .Select(t => new
             {

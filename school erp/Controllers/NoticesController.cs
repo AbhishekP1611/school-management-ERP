@@ -121,11 +121,8 @@ public class NoticesController : ControllerBase
 
         var noticesQ = _db.Notices
             .Where(n => (n.TargetRole == "All" || n.TargetRole == role) && !n.IsDeleted);
-        if (!User.IsSuperAdmin())
-        {
-            var unit = User.UnitId();
-            noticesQ = noticesQ.Where(n => n.UnitId == unit);
-        }
+        var units = User.ScopeUnitIds(HttpContext);
+        noticesQ = noticesQ.Where(n => n.UnitId != null && units.Contains(n.UnitId.Value));
 
         var notices = await noticesQ
             .OrderByDescending(n => n.NoticeId)

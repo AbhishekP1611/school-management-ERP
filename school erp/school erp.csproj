@@ -8,6 +8,9 @@
     <!-- Space-free output name so IIS/MonsterASP in-process hosting can launch
          the DLL cleanly (a space in "school erp.dll" breaks the AspNetCore handler). -->
     <AssemblyName>SchoolErpApi</AssemblyName>
+    <!-- Roll forward to whatever 10.x runtime the host has (avoids a hard
+         requirement on the exact 10.0.0 patch, which the host may not have). -->
+    <RollForward>LatestMajor</RollForward>
   </PropertyGroup>
 
   <ItemGroup>

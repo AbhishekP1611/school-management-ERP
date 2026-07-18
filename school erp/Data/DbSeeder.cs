@@ -178,6 +178,27 @@ BEGIN
     CREATE INDEX IX_Assets_Category ON Assets(Category);
 END");
 
+        // UserUnits — which units each user may access (multi-unit). Create if missing.
+        await db.Database.ExecuteSqlRawAsync(@"
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'UserUnits')
+BEGIN
+    CREATE TABLE UserUnits (
+        UserUnitId INT IDENTITY(1,1) PRIMARY KEY,
+        UserId     INT NOT NULL,
+        UnitId     INT NOT NULL
+    );
+    CREATE UNIQUE INDEX IX_UserUnits_User_Unit ON UserUnits(UserId, UnitId);
+END");
+
+        // Backfill: every existing user with a home unit but no access rows gets
+        // a UserUnits row for that unit, so multi-unit scoping keeps working for them.
+        await db.Database.ExecuteSqlRawAsync(@"
+INSERT INTO UserUnits (UserId, UnitId)
+SELECT u.UserId, u.UnitId
+FROM Users u
+WHERE u.UnitId IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM UserUnits uu WHERE uu.UserId = u.UserId AND uu.UnitId = u.UnitId);");
+
         // Academic-year columns (added later than the base script). Add if missing,
         // then backfill existing rows from their most relevant date (April–March rule).
         await db.Database.ExecuteSqlRawAsync(@"

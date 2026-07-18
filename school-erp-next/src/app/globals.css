@@ -334,6 +334,14 @@ body {
   max-width: 320px; overflow: hidden;
 }
 .topbar-unit span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Multi-unit switcher: a select styled to blend into the unit badge. */
+.topbar-unit-switch { padding-right: 6px; cursor: pointer; }
+.topbar-unit-switch select {
+  border: none; background: transparent; color: var(--primary-dark);
+  font-size: 12px; font-weight: 600; cursor: pointer; outline: none;
+  max-width: 260px; padding: 0 2px;
+}
+.topbar-unit-switch select option { color: var(--text-primary); background: var(--card-bg); font-weight: 500; }
 .topbar-unit-sa {
   background: linear-gradient(135deg, var(--primary), var(--primary-dark));
   color: #fff; padding: 1px 8px; border-radius: 12px; font-size: 10px; font-weight: 700;

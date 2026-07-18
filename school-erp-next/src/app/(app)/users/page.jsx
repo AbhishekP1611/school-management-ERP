@@ -9,10 +9,11 @@ import { runValidation, required, email as emailRule } from '@/lib/validate';
 import DataGrid from '@/components/DataGrid';
 import RouteGuard from '@/components/RouteGuard';
 
-const EMPTY = { username: '', password: '', role: 'Teacher', email: '', isActive: true, emailNotifications: true };
+const EMPTY = { username: '', password: '', role: 'Teacher', email: '', isActive: true, emailNotifications: true, unitId: '', unitIds: [] };
 
 function UsersInner() {
   const [users, setUsers] = useState([]);
+  const [units, setUnits] = useState([]);            // all units, for the multi-select
   const [showModal, setShowModal] = useState(false);
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState(EMPTY);
@@ -28,11 +29,33 @@ function UsersInner() {
   const load = () => API.get(`/users?includeInactive=${showInactive}`).then((r) => setUsers(r.data)).catch(console.error);
   useEffect(() => { load(); }, [showInactive]);
 
+  // Load all units once (for the "units this user can access" multi-select).
+  useEffect(() => { API.get('/units').then((r) => setUnits(r.data || [])).catch(() => setUnits([])); }, []);
+
   const openForm = (u = null) => {
     setErrors({});
-    if (u) { setEditId(u.userId); setForm({ ...EMPTY, ...u, password: '' }); }
-    else { setEditId(null); setForm(EMPTY); }
+    if (u) {
+      // u.unitIds comes from the API (the units this user may access).
+      const ids = Array.isArray(u.unitIds) && u.unitIds.length ? u.unitIds : (u.unitId ? [u.unitId] : []);
+      setEditId(u.userId);
+      setForm({ ...EMPTY, ...u, password: '', unitId: u.unitId || '', unitIds: ids });
+    } else {
+      setEditId(null);
+      setForm(EMPTY);
+    }
     setShowModal(true);
+  };
+
+  // Toggle a unit in the multi-select. The first-picked unit becomes the "home" unit.
+  const toggleUnit = (id) => {
+    setForm((f) => {
+      const has = f.unitIds.includes(id);
+      const nextIds = has ? f.unitIds.filter((x) => x !== id) : [...f.unitIds, id];
+      // keep a valid home unit: current one if still selected, else the first selected
+      let home = f.unitId && nextIds.includes(f.unitId) ? f.unitId : (nextIds[0] || '');
+      return { ...f, unitIds: nextIds, unitId: home };
+    });
+    if (errors.unitIds) setErrors((e) => ({ ...e, unitIds: undefined }));
   };
 
   const save = async (e) => {
@@ -40,6 +63,7 @@ function UsersInner() {
     const rules = { username: [required('Username is required')], email: [emailRule()] };
     if (!editId) rules.password = [required('Password is required')];
     const errs = runValidation(form, rules);
+    if (!form.unitIds || form.unitIds.length === 0) errs.unitIds = 'Select at least one unit';
     if (Object.keys(errs).length) { setErrors(errs); return; }
     if (!(await confirmSave('Save User?', 'Save this user account?'))) return;
     try {
@@ -148,6 +172,27 @@ function UsersInner() {
                   <label className="form-label">Email</label>
                   <input type="email" className={`form-control ${errors.email ? 'input-error' : ''}`} value={form.email || ''} onChange={(e) => set('email', e.target.value)} />
                   {errors.email && <span className="field-error">{errors.email}</span>}
+                </div>
+
+                {/* Units this user can access — pick one or more. */}
+                <div className="form-group">
+                  <label className="form-label">Units this user can access *</label>
+                  <div className={`unit-multiselect ${errors.unitIds ? 'input-error' : ''}`} style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 180, overflowY: 'auto', border: '1px solid var(--border-col)', borderRadius: 10, padding: 10 }}>
+                    {units.length === 0 && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>No units available.</span>}
+                    {units.map((u) => {
+                      const checked = form.unitIds.includes(u.unitId);
+                      const isHome = form.unitId === u.unitId;
+                      return (
+                        <label key={u.unitId} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
+                          <input type="checkbox" checked={checked} onChange={() => toggleUnit(u.unitId)} style={{ accentColor: 'var(--primary)', width: 15, height: 15 }} />
+                          <span style={{ fontWeight: checked ? 600 : 400 }}>{u.unitName}</span>
+                          {isHome && <span className="badge badge-grey" style={{ fontSize: 10 }}>home</span>}
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>User will see & manage the data of every ticked unit. First pick = home unit (new records they create are stamped with it).</span>
+                  {errors.unitIds && <span className="field-error">{errors.unitIds}</span>}
                 </div>
                 <div className="form-group">
                   <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>

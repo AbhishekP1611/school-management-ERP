@@ -25,11 +25,8 @@ public class ClassesController : ControllerBase
     public async Task<IActionResult> GetAll([FromQuery] string? year)
     {
         var baseQ = _db.Classes.Where(c => !c.IsDeleted);
-        if (!User.IsSuperAdmin())
-        {
-            var unit = User.UnitId();
-            baseQ = baseQ.Where(c => c.UnitId == unit);
-        }
+        var units = User.ScopeUnitIds(HttpContext);
+        baseQ = baseQ.Where(c => c.UnitId != null && units.Contains(c.UnitId.Value));
 
         var list = await baseQ
             .Include(c => c.ClassTeacher)

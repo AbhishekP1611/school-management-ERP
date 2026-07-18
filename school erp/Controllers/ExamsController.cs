@@ -27,11 +27,8 @@ public class ExamsController : ControllerBase
             .Include(e => e.ExamSubjects).ThenInclude(es => es.Subject)
             .AsQueryable();
 
-        if (!User.IsSuperAdmin())
-        {
-            var unit = User.UnitId();
-            query = query.Where(e => e.UnitId == unit);
-        }
+        var units = User.ScopeUnitIds(HttpContext);
+        query = query.Where(e => e.UnitId != null && units.Contains(e.UnitId.Value));
 
         if (classId.HasValue) query = query.Where(e => e.ClassId == classId);
         if (!string.IsNullOrWhiteSpace(examName)) query = query.Where(e => e.ExamName == examName);

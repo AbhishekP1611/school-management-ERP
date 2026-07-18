@@ -27,11 +27,10 @@ public class AttendanceController : ControllerBase
     }
 
     // Pure-permission "full attendance manager" check: a user who holds Attendance:Edit
-    // (or is SuperAdmin) manages ALL classes; anyone else is limited to the class(es)
+    // manages ALL classes; anyone else is limited to the class(es)
     // they class-teach. Replaces the old role == "Admin" gate.
     private async Task<bool> IsAttendanceManager()
     {
-        if (User.IsSuperAdmin()) return true;
         if (!int.TryParse(User.FindFirstValue("userId"), out int userId)) return false;
         var mod = await _db.Modules.FirstOrDefaultAsync(m => m.ModuleName == "Attendance");
         if (mod == null) return false;
@@ -45,12 +44,9 @@ public class AttendanceController : ControllerBase
     public async Task<IActionResult> MyClasses()
     {
         var q = _db.Classes.Where(c => !c.IsDeleted);
-        // unit-scope for non-SuperAdmin
-        if (!User.IsSuperAdmin())
-        {
-            var unit = User.UnitId();
-            q = q.Where(c => c.UnitId == unit);
-        }
+        // unit-scope: restrict to units this user may access
+        var units = User.ScopeUnitIds(HttpContext);
+        q = q.Where(c => c.UnitId != null && units.Contains(c.UnitId.Value));
 
         if (!await IsAttendanceManager())
         {
@@ -81,7 +77,7 @@ public class AttendanceController : ControllerBase
             : DateOnly.FromDateTime(DateTime.Today);
 
         // A class-teacher can only view their own class's student attendance;
-        // a full attendance manager (Attendance:Edit / SuperAdmin) sees all.
+        // a full attendance manager (Attendance:Edit) sees all.
         if (referenceType == "Student" && !await IsAttendanceManager())
         {
             var teacherId = await CurrentTeacherId();
@@ -213,7 +209,7 @@ public class AttendanceController : ControllerBase
             return BadRequest(new { message = "Attendance cannot be marked for a future date." });
 
         // Security: a class-teacher can only save attendance for students of their
-        // own class; a full attendance manager (Attendance:Edit / SuperAdmin) any class.
+        // own class; a full attendance manager (Attendance:Edit) any class.
         if (dto.ReferenceType == "Student" && !await IsAttendanceManager())
         {
             var teacherId = await CurrentTeacherId();

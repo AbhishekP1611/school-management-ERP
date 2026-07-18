@@ -24,11 +24,8 @@ public class FeesController : ControllerBase
         var query = _db.Fees.Include(f => f.Student)
             .Where(f => !f.IsDeleted && f.Student != null && f.Student.IsActive)
             .AsQueryable();
-        if (!User.IsSuperAdmin())
-        {
-            var unit = User.UnitId();
-            query = query.Where(f => f.UnitId == unit);
-        }
+        var units = User.ScopeUnitIds(HttpContext);
+        query = query.Where(f => f.UnitId != null && units.Contains(f.UnitId.Value));
         if (studentId.HasValue) query = query.Where(f => f.StudentId == studentId.Value);
         if (!string.IsNullOrWhiteSpace(status)) query = query.Where(f => f.Status == status);
         if (!string.IsNullOrWhiteSpace(year)) query = query.Where(f => f.AcademicYear == year);

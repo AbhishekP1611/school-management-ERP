@@ -34,18 +34,13 @@ public class UnitsController : ControllerBase
     private readonly AppDbContext _db;
     public UnitsController(AppDbContext db) => _db = db;
 
-    // GET api/units  — SuperAdmin sees all; others see only their own unit.
+    // GET api/units  — the FULL unit list. Units are master data (not tenant-scoped):
+    // the Units window shows every unit, and the "user access" multi-select needs
+    // all units so any user can be granted access to any unit.
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
-        var q = _db.Units.AsQueryable();
-        if (!User.IsSuperAdmin())
-        {
-            var myUnit = User.UnitId();
-            q = q.Where(u => u.UnitId == myUnit);
-        }
-
-        var list = await q.OrderBy(u => u.UnitName).ToListAsync();
+        var list = await _db.Units.OrderBy(u => u.UnitName).ToListAsync();
 
         var result = new List<UnitDto>();
         foreach (var u in list)
@@ -106,13 +101,12 @@ public class UnitsController : ControllerBase
         return Ok(new { unit.UnitId });
     }
 
-    // PUT api/units/5  — SuperAdmin edits any; a unit admin can edit their own basics.
+    // PUT api/units/5  — anyone with the Units:Edit permission can edit any unit
+    // (units are master data, not tenant-scoped).
     [HttpPut("{id}")]
+    [RequirePermission("Units", PermAction.Edit)]
     public async Task<IActionResult> Update(int id, [FromBody] UnitDto dto)
     {
-        if (!User.IsSuperAdmin() && User.UnitId() != id)
-            return Forbid();
-
         var u = await _db.Units.FindAsync(id);
         if (u == null) return NotFound();
 
@@ -120,7 +114,7 @@ public class UnitsController : ControllerBase
         u.PrincipalName = dto.PrincipalName; u.Address = dto.Address; u.City = dto.City;
         u.State = dto.State; u.Pincode = dto.Pincode; u.Phone = dto.Phone; u.Email = dto.Email;
         if (dto.LogoUrl != null) u.LogoUrl = dto.LogoUrl;
-        if (User.IsSuperAdmin()) u.IsActive = dto.IsActive;   // only SA can deactivate a unit
+        u.IsActive = dto.IsActive;
 
         await _db.SaveChangesAsync();
         return NoContent();

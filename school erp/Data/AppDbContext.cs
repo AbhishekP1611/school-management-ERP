@@ -32,6 +32,7 @@ public class AppDbContext : DbContext
     public DbSet<BusStop>      BusStops     { get; set; }
     public DbSet<BusAssignment> BusAssignments { get; set; }
     public DbSet<Unit>         Units        { get; set; }
+    public DbSet<UserUnit>     UserUnits    { get; set; }
     public DbSet<Holiday>      Holidays     { get; set; }
     public DbSet<GatePass>     GatePasses   { get; set; }
     public DbSet<Budget>       Budgets      { get; set; }
@@ -207,6 +208,21 @@ public class AppDbContext : DbContext
 
         // ── Unit ──────────────────────────────────────────────
         modelBuilder.Entity<Unit>(e => e.HasKey(u => u.UnitId));
+
+        // ── UserUnit: which units a user may access (multi-unit) ──
+        modelBuilder.Entity<UserUnit>(e =>
+        {
+            e.HasKey(x => x.UserUnitId);
+            e.HasIndex(x => new { x.UserId, x.UnitId }).IsUnique(); // no duplicate (user,unit)
+            e.HasOne(x => x.User)
+             .WithMany(u => u.UserUnits)
+             .HasForeignKey(x => x.UserId)
+             .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Unit)
+             .WithMany()
+             .HasForeignKey(x => x.UnitId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
 
         // ── Notices ───────────────────────────────────────────
         modelBuilder.Entity<Notice>(e => e.HasKey(n => n.NoticeId));

@@ -40,7 +40,7 @@ export default function Topbar({ onMenuClick }) {
   const title = TITLE_MAP[pathname] || 'School ERP';
   const { theme, toggleTheme } = useTheme();
   const { user, logout } = useAuth();
-  const { unit } = useUnit();
+  const { unit, units, activeUnitId, switchUnit } = useUnit();
   const { can } = usePermissions();
   const { years, year, current, setYear, loaded: yearsLoaded } = useAcademicYear();
   const canSeeCalendar = can('Calendar', 'canView');
@@ -100,10 +100,26 @@ export default function Topbar({ onMenuClick }) {
           </button>
           <div className="topbar-title">{title}</div>
           {unit?.unitName && (
-            <div className="topbar-unit" title="Unit">
-              <Building2 size={13} />
-              <span>{unit.unitName}</span>
-            </div>
+            units && units.length > 1 ? (
+              // Multi-unit user → switchable dropdown (re-scopes the whole app).
+              <div className="topbar-unit topbar-unit-switch" title="Switch unit">
+                <Building2 size={13} />
+                <select
+                  value={activeUnitId || ''}
+                  onChange={(e) => switchUnit(Number(e.target.value))}
+                  aria-label="Active unit"
+                >
+                  {units.map((u) => (
+                    <option key={u.unitId} value={u.unitId}>{u.unitName}</option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div className="topbar-unit" title="Unit">
+                <Building2 size={13} />
+                <span>{unit.unitName}</span>
+              </div>
+            )
           )}
         </div>
         <div className="topbar-right">

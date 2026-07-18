@@ -33,11 +33,8 @@ public class FinanceController : ControllerBase
     private IQueryable<Budget> Scoped()
     {
         var q = _db.Budgets.AsQueryable();
-        if (!User.IsSuperAdmin())
-        {
-            var unit = User.UnitId();
-            q = q.Where(b => b.UnitId == unit);
-        }
+        var units = User.ScopeUnitIds(HttpContext);
+        q = q.Where(b => b.UnitId != null && units.Contains(b.UnitId.Value));
         return q;
     }
 
@@ -49,12 +46,11 @@ public class FinanceController : ControllerBase
     public async Task<IActionResult> Income([FromQuery] string? year)
     {
         var y = string.IsNullOrWhiteSpace(year) ? AcademicYearHelper.Current() : year;
-        bool sa = User.IsSuperAdmin();
-        var unit = User.UnitId();
+        var units = User.ScopeUnitIds(HttpContext);
 
         // ── Fees (class-wise) — collected = PaidAmount, due = Amount - Discount - PaidAmount ──
         var feesQ = _db.Fees.Where(f => !f.IsDeleted && f.AcademicYear == y);
-        if (!sa) feesQ = feesQ.Where(f => f.UnitId == unit);
+        feesQ = feesQ.Where(f => f.UnitId != null && units.Contains(f.UnitId.Value));
 
         var feeRows = await feesQ
             .Select(f => new
@@ -67,7 +63,7 @@ public class FinanceController : ControllerBase
 
         // class name lookup
         var classesQ = _db.Classes.Where(c => !c.IsDeleted);
-        if (!sa) classesQ = classesQ.Where(c => c.UnitId == unit);
+        classesQ = classesQ.Where(c => c.UnitId != null && units.Contains(c.UnitId.Value));
         var classes = await classesQ
             .Select(c => new { c.ClassId, name = c.ClassName + (c.Stream != null ? " " + c.Stream : "") + " (" + c.Section + ")" })
             .ToListAsync();
@@ -92,7 +88,7 @@ public class FinanceController : ControllerBase
         // Fines don't carry a unit/year column, so scope by the student's unit and by
         // the fine's created date falling in this academic year.
         var finesQ = _db.FineDetails.AsQueryable();
-        if (!sa) finesQ = finesQ.Where(f => f.Student != null && f.Student.UnitId == unit);
+        finesQ = finesQ.Where(f => f.Student != null && f.Student.UnitId != null && units.Contains(f.Student.UnitId.Value));
         var fineRows = await finesQ
             .Select(f => new { f.FineAmount, f.CreatedAt })
             .ToListAsync();
@@ -122,7 +118,8 @@ public class FinanceController : ControllerBase
     {
         var y = string.IsNullOrWhiteSpace(year) ? AcademicYearHelper.Current() : year;
         var q = _db.Expenses.Where(e => e.AcademicYear == y);
-        if (!User.IsSuperAdmin()) { var u = User.UnitId(); q = q.Where(e => e.UnitId == u); }
+        var units = User.ScopeUnitIds(HttpContext);
+        q = q.Where(e => e.UnitId != null && units.Contains(e.UnitId.Value));
         if (!string.IsNullOrWhiteSpace(type) && type != "All")
             q = q.Where(e => e.ExpenseType == type);
 
@@ -162,7 +159,8 @@ public class FinanceController : ControllerBase
         var b = await Scoped().FirstOrDefaultAsync(x => x.AcademicYear == y && x.Category == category && x.Period == period);
         // how much already spent this year on this category+type
         var spentQ = _db.Expenses.Where(e => e.AcademicYear == y && e.Category == category && e.ExpenseType == period);
-        if (!User.IsSuperAdmin()) { var u = User.UnitId(); spentQ = spentQ.Where(e => e.UnitId == u); }
+        var units = User.ScopeUnitIds(HttpContext);
+        spentQ = spentQ.Where(e => e.UnitId != null && units.Contains(e.UnitId.Value));
         var spent = await spentQ.SumAsync(e => (decimal?)e.Amount) ?? 0;
         return Ok(new { planned = b?.PlannedAmount ?? 0, hasBudget = b != null, alreadySpent = spent });
     }
@@ -206,7 +204,8 @@ public class FinanceController : ControllerBase
     public async Task<IActionResult> UpdateExpense(int id, [FromBody] CreateExpenseDto dto)
     {
         var q = _db.Expenses.AsQueryable();
-        if (!User.IsSuperAdmin()) { var u = User.UnitId(); q = q.Where(e => e.UnitId == u); }
+        var units = User.ScopeUnitIds(HttpContext);
+        q = q.Where(e => e.UnitId != null && units.Contains(e.UnitId.Value));
         var exp = await q.FirstOrDefaultAsync(e => e.ExpenseId == id);
         if (exp == null) return NotFound();
         if (string.IsNullOrWhiteSpace(dto.Category)) return BadRequest(new { message = "Category is required." });
@@ -232,7 +231,8 @@ public class FinanceController : ControllerBase
     public async Task<IActionResult> DeleteExpense(int id)
     {
         var q = _db.Expenses.AsQueryable();
-        if (!User.IsSuperAdmin()) { var u = User.UnitId(); q = q.Where(e => e.UnitId == u); }
+        var units = User.ScopeUnitIds(HttpContext);
+        q = q.Where(e => e.UnitId != null && units.Contains(e.UnitId.Value));
         var exp = await q.FirstOrDefaultAsync(e => e.ExpenseId == id);
         if (exp == null) return NotFound();
         _db.Expenses.Remove(exp);
@@ -246,18 +246,17 @@ public class FinanceController : ControllerBase
     public async Task<IActionResult> Summary([FromQuery] string? year)
     {
         var y = string.IsNullOrWhiteSpace(year) ? AcademicYearHelper.Current() : year;
-        bool sa = User.IsSuperAdmin();
-        var unit = User.UnitId();
+        var units = User.ScopeUnitIds(HttpContext);
         var today = DateOnly.FromDateTime(DateTime.Today);
 
         // Earn = fees collected + fines collected (this year)
         var feesQ = _db.Fees.Where(f => !f.IsDeleted && f.AcademicYear == y);
-        if (!sa) feesQ = feesQ.Where(f => f.UnitId == unit);
+        feesQ = feesQ.Where(f => f.UnitId != null && units.Contains(f.UnitId.Value));
         var feesCollected = await feesQ.SumAsync(f => (decimal?)f.PaidAmount) ?? 0;
         var feesDue = await feesQ.SumAsync(f => (decimal?)(f.Amount - f.Discount - f.PaidAmount)) ?? 0;
 
         var finesQ = _db.FineDetails.AsQueryable();
-        if (!sa) finesQ = finesQ.Where(f => f.Student != null && f.Student.UnitId == unit);
+        finesQ = finesQ.Where(f => f.Student != null && f.Student.UnitId != null && units.Contains(f.Student.UnitId.Value));
         var fineRows = await finesQ.Select(f => new { f.FineAmount, f.CreatedAt }).ToListAsync();
         var finesCollected = fineRows.Where(f => AcademicYearHelper.FromDate(f.CreatedAt) == y).Sum(f => f.FineAmount);
 
@@ -265,7 +264,7 @@ public class FinanceController : ControllerBase
 
         // Expense = yearly + monthly (this year)
         var expQ = _db.Expenses.Where(e => e.AcademicYear == y);
-        if (!sa) expQ = expQ.Where(e => e.UnitId == unit);
+        expQ = expQ.Where(e => e.UnitId != null && units.Contains(e.UnitId.Value));
         var expList = await expQ.Select(e => new { e.Amount, e.ExpenseType, e.ExpenseDate }).ToListAsync();
         var yearlyExpense = expList.Where(e => e.ExpenseType == "Yearly").Sum(e => e.Amount);
         var monthlyExpense = expList.Where(e => e.ExpenseType == "Monthly").Sum(e => e.Amount);
@@ -294,20 +293,19 @@ public class FinanceController : ControllerBase
     public async Task<IActionResult> Report([FromQuery] string? year, [FromQuery] string? from, [FromQuery] string? to)
     {
         var y = string.IsNullOrWhiteSpace(year) ? AcademicYearHelper.Current() : year;
-        bool sa = User.IsSuperAdmin();
-        var unit = User.UnitId();
+        var units = User.ScopeUnitIds(HttpContext);
 
         DateOnly? dFrom = DateOnly.TryParse(from, out var f) ? f : null;
         DateOnly? dTo   = DateOnly.TryParse(to, out var t) ? t : null;
 
         // ── Income side ──
         var feesQ = _db.Fees.Where(fe => !fe.IsDeleted && fe.AcademicYear == y);
-        if (!sa) feesQ = feesQ.Where(fe => fe.UnitId == unit);
+        feesQ = feesQ.Where(fe => fe.UnitId != null && units.Contains(fe.UnitId.Value));
         var feesCollected = await feesQ.SumAsync(fe => (decimal?)fe.PaidAmount) ?? 0;
         var feesDue = await feesQ.SumAsync(fe => (decimal?)(fe.Amount - fe.Discount - fe.PaidAmount)) ?? 0;
 
         var finesQ = _db.FineDetails.AsQueryable();
-        if (!sa) finesQ = finesQ.Where(fi => fi.Student != null && fi.Student.UnitId == unit);
+        finesQ = finesQ.Where(fi => fi.Student != null && fi.Student.UnitId != null && units.Contains(fi.Student.UnitId.Value));
         var fineRows = await finesQ.Select(fi => new { fi.FineAmount, fi.CreatedAt }).ToListAsync();
         var finesCollected = fineRows.Where(fi => AcademicYearHelper.FromDate(fi.CreatedAt) == y).Sum(fi => fi.FineAmount);
 
@@ -315,7 +313,7 @@ public class FinanceController : ControllerBase
 
         // ── Expense side (category-grouped, optional date bound) ──
         var expQ = _db.Expenses.Where(e => e.AcademicYear == y);
-        if (!sa) expQ = expQ.Where(e => e.UnitId == unit);
+        expQ = expQ.Where(e => e.UnitId != null && units.Contains(e.UnitId.Value));
         if (dFrom.HasValue) expQ = expQ.Where(e => e.ExpenseDate >= dFrom.Value);
         if (dTo.HasValue)   expQ = expQ.Where(e => e.ExpenseDate <= dTo.Value);
         var expRows = await expQ.Select(e => new { e.Category, e.ExpenseType, e.Amount }).ToListAsync();
@@ -334,7 +332,7 @@ public class FinanceController : ControllerBase
         // ── Fee defaulters (students who still owe) ──
         var defQ = _db.Fees.Where(fe => !fe.IsDeleted && fe.AcademicYear == y
                         && (fe.Amount - fe.Discount - fe.PaidAmount) > 0);
-        if (!sa) defQ = defQ.Where(fe => fe.UnitId == unit);
+        defQ = defQ.Where(fe => fe.UnitId != null && units.Contains(fe.UnitId.Value));
         var defaulters = await defQ
             .GroupBy(fe => fe.StudentId)
             .Select(g => new

@@ -22,17 +22,16 @@ public class DashboardController : ControllerBase
         var today = DateOnly.FromDateTime(DateTime.Today);
         var weekAgo = today.AddDays(-6);
 
-        // Unit scope — SuperAdmin sees all-unit totals; others see their unit only.
-        bool allUnits = User.IsSuperAdmin();
-        int? unit = User.UnitId();
+        // Unit scope — user sees totals across every unit they may access.
+        var units = User.ScopeUnitIds(HttpContext);
 
         // Optional academic-year scope — when provided, year-scoped stats filter by it.
         bool hasYear = !string.IsNullOrWhiteSpace(year);
 
-        var totalStudents = await _db.Students.CountAsync(s => s.IsActive && (allUnits || s.UnitId == unit) && (!hasYear || s.AcademicYear == year));
-        var totalTeachers = await _db.Teachers.CountAsync(t => t.IsActive && (allUnits || t.UnitId == unit));
-        var totalClasses  = await _db.Classes.CountAsync(c => !c.IsDeleted && (allUnits || c.UnitId == unit) && (!hasYear || c.AcademicYear == year));
-        var totalBuses    = await _db.Buses.CountAsync(b => b.IsActive && (allUnits || b.UnitId == unit));
+        var totalStudents = await _db.Students.CountAsync(s => s.IsActive && s.UnitId != null && units.Contains(s.UnitId.Value) && (!hasYear || s.AcademicYear == year));
+        var totalTeachers = await _db.Teachers.CountAsync(t => t.IsActive && t.UnitId != null && units.Contains(t.UnitId.Value));
+        var totalClasses  = await _db.Classes.CountAsync(c => !c.IsDeleted && c.UnitId != null && units.Contains(c.UnitId.Value) && (!hasYear || c.AcademicYear == year));
+        var totalBuses    = await _db.Buses.CountAsync(b => b.IsActive && b.UnitId != null && units.Contains(b.UnitId.Value));
 
         var todayStudentAttendance = await _db.Attendances
             .Where(a => a.ReferenceType == "Student" && a.AttendanceDate == today && (!hasYear || a.AcademicYear == year))
@@ -44,10 +43,10 @@ public class DashboardController : ControllerBase
 
         // Only count fees of active students, excluding soft-deleted fee rows.
         var feeCollected = await _db.Fees
-            .Where(f => !f.IsDeleted && f.Student != null && f.Student.IsActive && (allUnits || f.UnitId == unit) && (!hasYear || f.AcademicYear == year))
+            .Where(f => !f.IsDeleted && f.Student != null && f.Student.IsActive && f.UnitId != null && units.Contains(f.UnitId.Value) && (!hasYear || f.AcademicYear == year))
             .SumAsync(f => f.PaidAmount);
         var feePending   = await _db.Fees
-            .Where(f => !f.IsDeleted && f.Student != null && f.Student.IsActive && f.Status != "Paid" && (allUnits || f.UnitId == unit) && (!hasYear || f.AcademicYear == year))
+            .Where(f => !f.IsDeleted && f.Student != null && f.Student.IsActive && f.Status != "Paid" && f.UnitId != null && units.Contains(f.UnitId.Value) && (!hasYear || f.AcademicYear == year))
             .SumAsync(f => f.Amount - f.Discount - f.PaidAmount);
 
         // Last 7-day attendance trend
@@ -57,7 +56,7 @@ public class DashboardController : ControllerBase
             .Where(a => a.ReferenceType == "Student"
                      && a.AttendanceDate >= weekAgo
                      && a.AttendanceDate <= today
-                     && (allUnits || a.UnitId == unit)
+                     && a.UnitId != null && units.Contains(a.UnitId.Value)
                      && (!hasYear || a.AcademicYear == year))
             .GroupBy(a => a.AttendanceDate)
             .Select(g => new
@@ -79,7 +78,7 @@ public class DashboardController : ControllerBase
             .ToList();
 
         var upcoming = await _db.Events
-            .Where(e => e.EventDate >= today && e.IsPublished && (allUnits || e.UnitId == unit))
+            .Where(e => e.EventDate >= today && e.IsPublished && e.UnitId != null && units.Contains(e.UnitId.Value))
             .OrderBy(e => e.EventDate)
             .Take(5)
             .Select(e => new EventDto
@@ -114,20 +113,19 @@ public class DashboardController : ControllerBase
     public async Task<IActionResult> Advanced([FromQuery] string? year)
     {
         var today = DateOnly.FromDateTime(DateTime.Today);
-        bool sa = User.IsSuperAdmin();
-        int? unit = User.UnitId();
+        var units = User.ScopeUnitIds(HttpContext);
         var y = string.IsNullOrWhiteSpace(year) ? AcademicYearHelper.Current() : year;
         int curStart = int.Parse(y.Split('-')[0]);   // e.g. 2026 for "2026-27"
 
         // ── Headline counts ──
-        var totalStudents = await _db.Students.CountAsync(s => s.IsActive && (sa || s.UnitId == unit));
-        var totalTeachers = await _db.Teachers.CountAsync(t => t.IsActive && (sa || t.UnitId == unit));
-        var totalClasses  = await _db.Classes.CountAsync(c => !c.IsDeleted && (sa || c.UnitId == unit));
-        var totalBuses    = await _db.Buses.CountAsync(b => b.IsActive && (sa || b.UnitId == unit));
+        var totalStudents = await _db.Students.CountAsync(s => s.IsActive && s.UnitId != null && units.Contains(s.UnitId.Value));
+        var totalTeachers = await _db.Teachers.CountAsync(t => t.IsActive && t.UnitId != null && units.Contains(t.UnitId.Value));
+        var totalClasses  = await _db.Classes.CountAsync(c => !c.IsDeleted && c.UnitId != null && units.Contains(c.UnitId.Value));
+        var totalBuses    = await _db.Buses.CountAsync(b => b.IsActive && b.UnitId != null && units.Contains(b.UnitId.Value));
 
         // ── Today's attendance % (student + teacher) for the donut charts ──
-        var sAtt = await _db.Attendances.Where(a => a.ReferenceType == "Student" && a.AttendanceDate == today && (sa || a.UnitId == unit)).ToListAsync();
-        var tAtt = await _db.Attendances.Where(a => a.ReferenceType == "Teacher" && a.AttendanceDate == today && (sa || a.UnitId == unit)).ToListAsync();
+        var sAtt = await _db.Attendances.Where(a => a.ReferenceType == "Student" && a.AttendanceDate == today && a.UnitId != null && units.Contains(a.UnitId.Value)).ToListAsync();
+        var tAtt = await _db.Attendances.Where(a => a.ReferenceType == "Teacher" && a.AttendanceDate == today && a.UnitId != null && units.Contains(a.UnitId.Value)).ToListAsync();
         object AttStat(List<Models.Attendance> list, int total)
         {
             int present = list.Count(a => a.Status == "Present");
@@ -143,28 +141,28 @@ public class DashboardController : ControllerBase
         // Income = fees paid + fines (that fall in the year); Expense = Expenses table.
         var pl = new List<object>();
         // preload fine rows once (small) and expenses per year via query
-        var fineRows = await (sa ? _db.FineDetails : _db.FineDetails.Where(f => f.Student != null && f.Student.UnitId == unit))
+        var fineRows = await _db.FineDetails.Where(f => f.Student != null && f.Student.UnitId != null && units.Contains(f.Student.UnitId.Value))
             .Select(f => new { f.FineAmount, f.CreatedAt }).ToListAsync();
         for (int i = 4; i >= 0; i--)
         {
             int ys = curStart - i;
             string yy = $"{ys}-{(ys + 1) % 100:D2}";
-            var feesPaid = await _db.Fees.Where(f => !f.IsDeleted && f.AcademicYear == yy && (sa || f.UnitId == unit)).SumAsync(f => (decimal?)f.PaidAmount) ?? 0;
+            var feesPaid = await _db.Fees.Where(f => !f.IsDeleted && f.AcademicYear == yy && f.UnitId != null && units.Contains(f.UnitId.Value)).SumAsync(f => (decimal?)f.PaidAmount) ?? 0;
             var fines = fineRows.Where(f => AcademicYearHelper.FromDate(f.CreatedAt) == yy).Sum(f => f.FineAmount);
             var income = feesPaid + fines;
-            var expense = await _db.Expenses.Where(e => e.AcademicYear == yy && (sa || e.UnitId == unit)).SumAsync(e => (decimal?)e.Amount) ?? 0;
+            var expense = await _db.Expenses.Where(e => e.AcademicYear == yy && e.UnitId != null && units.Contains(e.UnitId.Value)).SumAsync(e => (decimal?)e.Amount) ?? 0;
             pl.Add(new { year = yy, income, expense, profit = income - expense, isCurrent = yy == y });
         }
 
         // ── Fees (current year) ──
-        var feesQ = _db.Fees.Where(f => !f.IsDeleted && f.AcademicYear == y && (sa || f.UnitId == unit));
+        var feesQ = _db.Fees.Where(f => !f.IsDeleted && f.AcademicYear == y && f.UnitId != null && units.Contains(f.UnitId.Value));
         var feeCollected = await feesQ.SumAsync(f => (decimal?)f.PaidAmount) ?? 0;
         var feeDue = await feesQ.SumAsync(f => (decimal?)(f.Amount - f.Discount - f.PaidAmount)) ?? 0;
         var feeTotal = feeCollected + (feeDue > 0 ? feeDue : 0);
 
         // ── Class-wise student distribution (top 6) ──
         var classDist = await _db.Students
-            .Where(s => s.IsActive && (sa || s.UnitId == unit) && s.Class != null)
+            .Where(s => s.IsActive && s.UnitId != null && units.Contains(s.UnitId.Value) && s.Class != null)
             .GroupBy(s => new { s.ClassId, s.Class!.ClassName, s.Class.Section, s.Class.Stream })
             .Select(g => new { name = g.Key.ClassName + (g.Key.Stream != null ? " " + g.Key.Stream : "") + " (" + g.Key.Section + ")", count = g.Count() })
             .OrderByDescending(g => g.count)
@@ -172,11 +170,11 @@ public class DashboardController : ControllerBase
             .ToListAsync();
 
         // ── Gender split ──
-        var boys  = await _db.Students.CountAsync(s => s.IsActive && (sa || s.UnitId == unit) && s.Gender == "Male");
-        var girls = await _db.Students.CountAsync(s => s.IsActive && (sa || s.UnitId == unit) && s.Gender == "Female");
+        var boys  = await _db.Students.CountAsync(s => s.IsActive && s.UnitId != null && units.Contains(s.UnitId.Value) && s.Gender == "Male");
+        var girls = await _db.Students.CountAsync(s => s.IsActive && s.UnitId != null && units.Contains(s.UnitId.Value) && s.Gender == "Female");
 
         // ── Currently inside campus (gate) ──
-        var insideNow = await _db.GatePasses.CountAsync(g => g.ExitAt == null && (sa || g.UnitId == unit));
+        var insideNow = await _db.GatePasses.CountAsync(g => g.ExitAt == null && g.UnitId != null && units.Contains(g.UnitId.Value));
 
         // ── Library: issued & fines this year ──
         var booksIssued = await _db.IssuedBooks.CountAsync(b => b.ReturnDate == null);
@@ -185,7 +183,7 @@ public class DashboardController : ControllerBase
         // ── 7-day attendance trend (student present %) ──
         var weekAgo = today.AddDays(-6);
         var trendRaw = await _db.Attendances
-            .Where(a => a.ReferenceType == "Student" && a.AttendanceDate >= weekAgo && a.AttendanceDate <= today && (sa || a.UnitId == unit))
+            .Where(a => a.ReferenceType == "Student" && a.AttendanceDate >= weekAgo && a.AttendanceDate <= today && a.UnitId != null && units.Contains(a.UnitId.Value))
             .GroupBy(a => a.AttendanceDate)
             .Select(g => new { Date = g.Key, Present = g.Count(x => x.Status == "Present"), Total = g.Count() })
             .ToListAsync();
@@ -197,7 +195,7 @@ public class DashboardController : ControllerBase
 
         // ── Upcoming events ──
         var events = await _db.Events
-            .Where(e => e.EventDate >= today && e.IsPublished && (sa || e.UnitId == unit))
+            .Where(e => e.EventDate >= today && e.IsPublished && e.UnitId != null && units.Contains(e.UnitId.Value))
             .OrderBy(e => e.EventDate).Take(5)
             .Select(e => new { e.EventTitle, date = e.EventDate.ToString("yyyy-MM-dd"), e.Venue, e.EventType })
             .ToListAsync();

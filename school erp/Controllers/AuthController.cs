@@ -48,9 +48,19 @@ public class AuthController : ControllerBase
         if (!user.IsActive || user.IsBlocked)
             return Unauthorized(new { message = "Your account is blocked. Contact the administrator to re-activate it." });
 
-        // Unit gate: if a unit was selected, the user must belong to it.
-        if (req.UnitId.HasValue && user.UnitId != req.UnitId.Value)
-            return Unauthorized(new { message = "This user does not belong to the selected unit." });
+        // Every unit this user may access (multi-unit). Falls back to the home
+        // unit for older accounts that have no UserUnits rows yet.
+        var allowedUnits = await _db.UserUnits
+            .Where(x => x.UserId == user.UserId)
+            .Select(x => x.UnitId)
+            .ToListAsync();
+        if (allowedUnits.Count == 0 && user.UnitId.HasValue)
+            allowedUnits.Add(user.UnitId.Value);
+
+        // Unit gate: if a unit was selected on the login screen, it must be one
+        // of the user's allowed units.
+        if (req.UnitId.HasValue && !allowedUnits.Contains(req.UnitId.Value))
+            return Unauthorized(new { message = "This user does not have access to the selected unit." });
 
         // ── Single-session gate ──────────────────────────────────────
         // A user may be logged in on only ONE device at a time. If there's a still-alive
@@ -102,11 +112,25 @@ public class AuthController : ControllerBase
         if (user.EmailNotifications && !string.IsNullOrWhiteSpace(user.Email))
             await SendLoginEmail(user.Email!, user.Username, unitName, loginAt, ip);
 
+        // Which unit is "active" for this session: the one chosen on the login
+        // screen if given (and allowed), else the home unit, else the first allowed.
+        int? activeUnit = (req.UnitId.HasValue && allowedUnits.Contains(req.UnitId.Value))
+            ? req.UnitId
+            : (user.UnitId.HasValue && allowedUnits.Contains(user.UnitId.Value) ? user.UnitId
+               : (allowedUnits.Count > 0 ? allowedUnits[0] : (int?)null));
+
+        // Brief list of the user's units for the header switcher.
+        var unitBriefs = await _db.Units
+            .Where(u => allowedUnits.Contains(u.UnitId))
+            .OrderBy(u => u.UnitName)
+            .Select(u => new UnitBrief(u.UnitId, u.UnitName))
+            .ToListAsync();
+
         // Absolute session cap = login time + 8h. Refresh can renew the token but
         // never past this, so everyone is logged out 8 hours after login.
         var absoluteExpiry = loginAt.AddHours(8);
-        var token = _jwt.GenerateToken(user, absoluteExpiry);
-        return Ok(new LoginResponse(token, user.Username, user.Role, user.UserId, user.Email));
+        var token = _jwt.GenerateToken(user, absoluteExpiry, allowedUnits);
+        return Ok(new LoginResponse(token, user.Username, user.Role, user.UserId, user.Email, activeUnit, unitBriefs));
     }
 
     // Sends a "you just logged in" alert email. Swallows all errors.
@@ -198,7 +222,15 @@ public class AuthController : ControllerBase
             absoluteExpiry = DateTime.UtcNow.AddHours(8);
         }
 
-        var token = _jwt.GenerateToken(user, absoluteExpiry);
+        // Reload the user's allowed units so unit-access changes take effect on refresh.
+        var allowedUnits = await _db.UserUnits
+            .Where(x => x.UserId == user.UserId)
+            .Select(x => x.UnitId)
+            .ToListAsync();
+        if (allowedUnits.Count == 0 && user.UnitId.HasValue)
+            allowedUnits.Add(user.UnitId.Value);
+
+        var token = _jwt.GenerateToken(user, absoluteExpiry, allowedUnits);
         return Ok(new LoginResponse(token, user.Username, user.Role, user.UserId, user.Email));
     }
 

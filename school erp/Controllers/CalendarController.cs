@@ -47,11 +47,8 @@ public class CalendarController : ControllerBase
         var to   = new DateOnly(y, 12, 31);
 
         var q = _db.Holidays.Where(h => h.Date >= from && h.Date <= to);
-        if (!User.IsSuperAdmin())
-        {
-            var unit = User.UnitId();
-            q = q.Where(h => h.UnitId == unit);
-        }
+        var units = User.ScopeUnitIds(HttpContext);
+        q = q.Where(h => h.UnitId != null && units.Contains(h.UnitId.Value));
 
         var list = await q
             .OrderBy(h => h.Date)
@@ -146,8 +143,8 @@ public class CalendarController : ControllerBase
     {
         var h = await _db.Holidays.FindAsync(id);
         if (h == null) return NotFound();
-        // unit guard: non-SuperAdmin can only delete their own unit's holidays
-        if (!User.IsSuperAdmin() && h.UnitId != User.UnitId())
+        // unit guard: user can only delete holidays in units they may access
+        if (!User.CanAccessUnit(h.UnitId))
             return Forbid();
         _db.Holidays.Remove(h);
         await _db.SaveChangesAsync();
@@ -158,11 +155,12 @@ public class CalendarController : ControllerBase
     private async Task<List<string>> GatherRecipientEmails(string target, int? classId, int? unitId)
     {
         var emails = new List<string>();
+        var units = User.ScopeUnitIds(HttpContext);
 
         if (target == "Teachers" || target == "All")
         {
             var tq = _db.Teachers.Where(t => t.IsActive && t.Email != null && t.Email != "");
-            if (!User.IsSuperAdmin()) tq = tq.Where(t => t.UnitId == unitId);
+            tq = tq.Where(t => t.UnitId != null && units.Contains(t.UnitId.Value));
             // honor per-user email opt-out: skip teachers whose linked login has it off
             tq = tq.Where(t => t.UserId == null
                 || _db.Users.Any(u => u.UserId == t.UserId && u.EmailNotifications));
@@ -172,7 +170,7 @@ public class CalendarController : ControllerBase
         if (target == "Students" || target == "All")
         {
             var sq = _db.Students.Where(s => s.IsActive);
-            if (!User.IsSuperAdmin()) sq = sq.Where(s => s.UnitId == unitId);
+            sq = sq.Where(s => s.UnitId != null && units.Contains(s.UnitId.Value));
             // student's own email OR parent's email (whichever is present)
             emails.AddRange(await sq
                 .Select(s => s.Email != null && s.Email != "" ? s.Email : s.ParentEmail)
@@ -184,7 +182,7 @@ public class CalendarController : ControllerBase
         if (target == "Class" && classId.HasValue)
         {
             var sq = _db.Students.Where(s => s.IsActive && s.ClassId == classId.Value);
-            if (!User.IsSuperAdmin()) sq = sq.Where(s => s.UnitId == unitId);
+            sq = sq.Where(s => s.UnitId != null && units.Contains(s.UnitId.Value));
             emails.AddRange(await sq
                 .Select(s => s.Email != null && s.Email != "" ? s.Email : s.ParentEmail)
                 .Where(e => e != null && e != "")

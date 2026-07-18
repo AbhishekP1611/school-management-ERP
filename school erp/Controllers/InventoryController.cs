@@ -24,11 +24,8 @@ public class InventoryController : ControllerBase
     public async Task<IActionResult> GetAssets([FromQuery] string? category, [FromQuery] string? condition, [FromQuery] string? search)
     {
         var query = _db.Assets.Where(a => !a.IsDeleted);
-        if (!User.IsSuperAdmin())
-        {
-            var unit = User.UnitId();
-            query = query.Where(a => a.UnitId == unit);
-        }
+        var units = User.ScopeUnitIds(HttpContext);
+        query = query.Where(a => a.UnitId != null && units.Contains(a.UnitId.Value));
         if (!string.IsNullOrWhiteSpace(category)) query = query.Where(a => a.Category == category);
         if (!string.IsNullOrWhiteSpace(condition)) query = query.Where(a => a.Condition == condition);
         if (!string.IsNullOrWhiteSpace(search))
@@ -68,11 +65,8 @@ public class InventoryController : ControllerBase
     public async Task<IActionResult> GetSummary()
     {
         var query = _db.Assets.Where(a => !a.IsDeleted);
-        if (!User.IsSuperAdmin())
-        {
-            var unit = User.UnitId();
-            query = query.Where(a => a.UnitId == unit);
-        }
+        var units = User.ScopeUnitIds(HttpContext);
+        query = query.Where(a => a.UnitId != null && units.Contains(a.UnitId.Value));
         var list = await query.ToListAsync();
 
         var totalItems   = list.Sum(a => a.Quantity);

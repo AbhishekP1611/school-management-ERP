@@ -16,4 +16,6 @@ public class User
     // Navigation
     public Teacher? Teacher { get; set; }
     public Student? Student { get; set; }
+    // Every unit this user may access (multi-unit). Home unit (UnitId) is included.
+    public ICollection<UserUnit> UserUnits { get; set; } = new List<UserUnit>();
 }

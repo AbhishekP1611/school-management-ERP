@@ -10,8 +10,13 @@ public record LoginResponse(
     string Username,
     string Role,
     int UserId,
-    string? Email
+    string? Email,
+    int? ActiveUnitId = null,            // the unit chosen for this session
+    List<UnitBrief>? Units = null        // every unit this user may access (for the switcher)
 );
+
+// Minimal unit info for the login response / unit switcher.
+public record UnitBrief(int UnitId, string UnitName);
 
 // ── Student DTOs ──────────────────────────────────────────────
 public class StudentDto

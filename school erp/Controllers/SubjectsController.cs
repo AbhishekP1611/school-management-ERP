@@ -23,11 +23,8 @@ public class SubjectsController : ControllerBase
     {
         var query = _db.Subjects
             .Where(s => s.ClassId == classId && !s.IsDeleted);
-        if (!User.IsSuperAdmin())
-        {
-            var unit = User.UnitId();
-            query = query.Where(s => s.UnitId == unit);
-        }
+        var units = User.ScopeUnitIds(HttpContext);
+        query = query.Where(s => s.UnitId != null && units.Contains(s.UnitId.Value));
 
         var list = await query
             .OrderBy(s => s.SubjectName)

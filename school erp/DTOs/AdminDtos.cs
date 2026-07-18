@@ -9,8 +9,9 @@ public class UserDto
     public string? Email    { get; set; }
     public bool    IsActive { get; set; }
     public bool    EmailNotifications { get; set; } = true;
-    public int?    UnitId   { get; set; }
-    public string? UnitName { get; set; }
+    public int?    UnitId   { get; set; }               // home unit
+    public string? UnitName { get; set; }               // home unit name
+    public List<int> UnitIds { get; set; } = new();     // every unit this user may access
 }
 
 public class CreateUserDto
@@ -21,7 +22,8 @@ public class CreateUserDto
     public string? Email    { get; set; }
     public bool    IsActive { get; set; } = true;
     public bool    EmailNotifications { get; set; } = true;
-    public int?    UnitId   { get; set; }
+    public int?    UnitId   { get; set; }               // home unit (defaults to first of UnitIds)
+    public List<int> UnitIds { get; set; } = new();     // units this user can access (multi-select)
 }
 
 // ── Modules / Authority ───────────────────────────────────────

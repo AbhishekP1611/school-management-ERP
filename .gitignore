@@ -41,3 +41,9 @@ Thumbs.db
 # ---- Uploaded files (user content, not source) ----
 **/uploads/
 **/wwwroot/uploads/
+
+.vercel
+.env*
+
+# ---- Personal project details (has passwords — never push to GitHub) ----
+PROJECT_DETAILS.txt

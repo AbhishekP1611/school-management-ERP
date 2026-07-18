@@ -36,8 +36,7 @@ public class PromotionController : ControllerBase
     [RequirePermission("Promotion", PermAction.View)]
     public async Task<IActionResult> Preview([FromQuery] string year, [FromQuery] int classId)
     {
-        bool sa = User.IsSuperAdmin();
-        var unit = User.UnitId();
+        var units = User.ScopeUnitIds(HttpContext);
         if (string.IsNullOrWhiteSpace(year)) year = AcademicYearHelper.Current();
 
         var cls = await _db.Classes.FirstOrDefaultAsync(c => c.ClassId == classId && !c.IsDeleted);
@@ -45,7 +44,7 @@ public class PromotionController : ControllerBase
         var fromClassName = $"{cls.ClassName} {cls.Section}";
 
         var studentsQ = _db.Students.Where(s => s.IsActive && s.ClassId == classId && s.AcademicYear == year);
-        if (!sa) studentsQ = studentsQ.Where(s => s.UnitId == unit);
+        studentsQ = studentsQ.Where(s => s.UnitId != null && units.Contains(s.UnitId.Value));
         var students = await studentsQ
             .OrderBy(s => s.RollNo).ThenBy(s => s.FirstName)
             .Select(s => new { s.StudentId, s.AdmissionNo, s.RollNo, s.FirstName, s.LastName })
@@ -123,10 +122,9 @@ public class PromotionController : ControllerBase
     [RequirePermission("Promotion", PermAction.View)]
     public async Task<IActionResult> TargetClasses([FromQuery] string? year)
     {
-        bool sa = User.IsSuperAdmin();
-        var unit = User.UnitId();
+        var units = User.ScopeUnitIds(HttpContext);
         var q = _db.Classes.Where(c => !c.IsDeleted);
-        if (!sa) q = q.Where(c => c.UnitId == unit);
+        q = q.Where(c => c.UnitId != null && units.Contains(c.UnitId.Value));
         var list = await q.OrderBy(c => c.ClassName).ThenBy(c => c.Section)
             .Select(c => new { c.ClassId, name = c.ClassName + (c.Stream != null ? " " + c.Stream : "") + " (" + c.Section + ")", c.ClassName, c.Section })
             .ToListAsync();
@@ -154,7 +152,7 @@ public class PromotionController : ControllerBase
                 var student = await _db.Students.Include(s => s.Class)
                     .FirstOrDefaultAsync(s => s.StudentId == row.StudentId && s.IsActive);
                 if (student == null) continue;
-                if (!User.IsSuperAdmin() && student.UnitId != User.UnitId()) continue;
+                if (!User.CanAccessUnit(student.UnitId)) continue;
 
                 var fromClassName = student.Class != null ? $"{student.Class.ClassName} {student.Class.Section}" : "";
                 var fromYear = student.AcademicYear;
@@ -309,7 +307,8 @@ public class PromotionController : ControllerBase
     public async Task<IActionResult> Supplementary([FromQuery] string? year, [FromQuery] string? status)
     {
         var q = _db.SupplementaryRecords.AsQueryable();
-        if (!User.IsSuperAdmin()) { var u = User.UnitId(); q = q.Where(s => s.UnitId == u); }
+        var units = User.ScopeUnitIds(HttpContext);
+        q = q.Where(s => s.UnitId != null && units.Contains(s.UnitId.Value));
         if (!string.IsNullOrWhiteSpace(year)) q = q.Where(s => s.AcademicYear == year);
         if (!string.IsNullOrWhiteSpace(status) && status != "All") q = q.Where(s => s.Status == status);
 
@@ -334,7 +333,7 @@ public class PromotionController : ControllerBase
     {
         var rec = await _db.SupplementaryRecords.FindAsync(id);
         if (rec == null) return NotFound();
-        if (!User.IsSuperAdmin() && rec.UnitId != User.UnitId()) return Forbid();
+        if (!User.CanAccessUnit(rec.UnitId)) return Forbid();
 
         var status = dto.Status == "Pass" ? "Pass" : dto.Status == "Fail" ? "Fail" : null;
         if (status == null) return BadRequest(new { message = "Status must be Pass or Fail." });
@@ -357,7 +356,8 @@ public class PromotionController : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(year)) year = AcademicYearHelper.Current();
         var q = _db.SupplementaryRecords.Where(s => s.AcademicYear == year);
-        if (!User.IsSuperAdmin()) { var u = User.UnitId(); q = q.Where(s => s.UnitId == u); }
+        var units = User.ScopeUnitIds(HttpContext);
+        q = q.Where(s => s.UnitId != null && units.Contains(s.UnitId.Value));
         var recs = await q.ToListAsync();
 
         var byStudent = recs.GroupBy(s => s.StudentId).Select(g => new
@@ -402,7 +402,7 @@ public class PromotionController : ControllerBase
     {
         var student = await _db.Students.Include(s => s.Class).FirstOrDefaultAsync(s => s.StudentId == dto.StudentId && s.IsActive);
         if (student == null) return NotFound();
-        if (!User.IsSuperAdmin() && student.UnitId != User.UnitId()) return Forbid();
+        if (!User.CanAccessUnit(student.UnitId)) return Forbid();
 
         // guard: all supp for this year must be cleared (pass, none pending/fail)
         var supp = await _db.SupplementaryRecords.Where(s => s.StudentId == student.StudentId && s.AcademicYear == student.AcademicYear).ToListAsync();

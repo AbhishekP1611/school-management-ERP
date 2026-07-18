@@ -24,11 +24,8 @@ public class LibraryController : ControllerBase
     public async Task<IActionResult> GetBooks()
     {
         var query = _db.Books.Where(b => !b.IsDeleted);
-        if (!User.IsSuperAdmin())
-        {
-            var unit = User.UnitId();
-            query = query.Where(b => b.UnitId == unit);
-        }
+        var units = User.ScopeUnitIds(HttpContext);
+        query = query.Where(b => b.UnitId != null && units.Contains(b.UnitId.Value));
 
         var list = await query
             .OrderBy(b => b.BookName)

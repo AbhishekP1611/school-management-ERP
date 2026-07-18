@@ -22,11 +22,8 @@ public class BusesController : ControllerBase
     public async Task<IActionResult> GetAll()
     {
         var query = _db.Buses.Where(b => b.IsActive);
-        if (!User.IsSuperAdmin())
-        {
-            var unit = User.UnitId();
-            query = query.Where(b => b.UnitId == unit);
-        }
+        var units = User.ScopeUnitIds(HttpContext);
+        query = query.Where(b => b.UnitId != null && units.Contains(b.UnitId.Value));
 
         var list = await query
             .Select(b => new BusDto

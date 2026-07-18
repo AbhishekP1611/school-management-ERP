@@ -107,6 +107,11 @@ API.interceptors.request.use(async (config) => {
       await maybeRefresh(token);
       token = localStorage.getItem('token') || token;
       config.headers.Authorization = `Bearer ${token}`;
+
+      // Multi-unit: tell the backend which unit this session is viewing, so all
+      // data is scoped to the active unit (switchable in the header).
+      const activeUnit = localStorage.getItem('active_unit');
+      if (activeUnit) config.headers['X-Unit-Id'] = activeUnit;
     }
 
     // Attach the selected academic year to year-scoped GET requests

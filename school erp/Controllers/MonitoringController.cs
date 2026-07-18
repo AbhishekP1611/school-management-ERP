@@ -215,11 +215,10 @@ public class MonitoringController : ControllerBase
     }
 
     // True if this is the ONLY active user who can manage the Users module
-    // (SuperAdmin or has Users edit/create). Removing/blocking them would lock everyone out.
+    // (has Users edit/create). Removing/blocking them would lock everyone out.
     private async Task<bool> IsLastUserManager(User user)
     {
-        bool isManager = user.Role == "SuperAdmin"
-            || await HasUsersManage(user.UserId);
+        bool isManager = await HasUsersManage(user.UserId);
         if (!isManager) return false;
 
         var mod = await _db.Modules.FirstOrDefaultAsync(m => m.ModuleName == "Users");
@@ -227,7 +226,6 @@ public class MonitoringController : ControllerBase
         var others = await _db.Users.Where(u => u.IsActive && u.UserId != user.UserId).ToListAsync();
         foreach (var o in others)
         {
-            if (o.Role == "SuperAdmin") return false;
             if (modId != -1 && await _db.Authorities.AnyAsync(a => a.UserId == o.UserId && a.ModuleId == modId && (a.CanEdit || a.CanCreate)))
                 return false;
         }

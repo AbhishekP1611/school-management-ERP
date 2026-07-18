@@ -15,9 +15,6 @@ public class StudentLookupController : ControllerBase
     private readonly AppDbContext _db;
     public StudentLookupController(AppDbContext db) => _db = db;
 
-    private bool SA => User.IsSuperAdmin();
-    private int? Unit => User.UnitId();
-
     // GET api/student-lookup/search?q=&year=&classId=  — student picker with filters.
     // Any combination: text query, academic year, and/or class.
     [HttpGet("search")]
@@ -29,7 +26,8 @@ public class StudentLookupController : ControllerBase
             return Ok(Array.Empty<object>());
 
         var sq = _db.Students.AsQueryable();
-        if (!SA) sq = sq.Where(s => s.UnitId == Unit);
+        var units = User.ScopeUnitIds(HttpContext);
+        sq = sq.Where(s => s.UnitId != null && units.Contains(s.UnitId.Value));
         if (!string.IsNullOrWhiteSpace(q))
             sq = sq.Where(s => s.FirstName.Contains(q) || s.LastName.Contains(q) || s.AdmissionNo.Contains(q));
         if (!string.IsNullOrWhiteSpace(year))
@@ -58,7 +56,8 @@ public class StudentLookupController : ControllerBase
     public async Task<IActionResult> ClassesForYear([FromQuery] string? year)
     {
         var q = _db.Classes.Where(c => !c.IsDeleted);
-        if (!SA) q = q.Where(c => c.UnitId == Unit);
+        var units = User.ScopeUnitIds(HttpContext);
+        q = q.Where(c => c.UnitId != null && units.Contains(c.UnitId.Value));
         var list = await q.OrderBy(c => c.ClassName).ThenBy(c => c.Section)
             .Select(c => new { c.ClassId, name = c.ClassName + (c.Stream != null ? " " + c.Stream : "") + " (" + c.Section + ")" }).ToListAsync();
         return Ok(list);
@@ -72,7 +71,7 @@ public class StudentLookupController : ControllerBase
         var years = new HashSet<string>();
         var s = await _db.Students.FirstOrDefaultAsync(x => x.StudentId == studentId);
         if (s == null) return NotFound();
-        if (!SA && s.UnitId != Unit) return Forbid();
+        if (!User.CanAccessUnit(s.UnitId)) return Forbid();
 
         if (!string.IsNullOrWhiteSpace(s.AcademicYear)) years.Add(s.AcademicYear);
         foreach (var y in await _db.Fees.Where(f => f.StudentId == studentId).Select(f => f.AcademicYear).Distinct().ToListAsync())
@@ -94,7 +93,7 @@ public class StudentLookupController : ControllerBase
     {
         var s = await _db.Students.Include(s => s.Class).FirstOrDefaultAsync(x => x.StudentId == studentId);
         if (s == null) return NotFound(new { message = "Student not found." });
-        if (!SA && s.UnitId != Unit) return Forbid();
+        if (!User.CanAccessUnit(s.UnitId)) return Forbid();
         if (string.IsNullOrWhiteSpace(year)) year = AcademicYearHelper.Current();
 
         // ── Profile ──
