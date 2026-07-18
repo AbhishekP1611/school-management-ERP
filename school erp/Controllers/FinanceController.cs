@@ -191,7 +191,7 @@ public class FinanceController : ControllerBase
             ExpenseDate = date,
             AcademicYear = string.IsNullOrWhiteSpace(dto.AcademicYear) ? AcademicYearHelper.FromDate(date) : dto.AcademicYear,
             CreatedBy = Uid(),
-            UnitId = User.UnitId()
+            UnitId = User.ActiveUnitId(HttpContext)
         };
         _db.Expenses.Add(exp);
         await _db.SaveChangesAsync();
@@ -208,6 +208,7 @@ public class FinanceController : ControllerBase
         q = q.Where(e => e.UnitId != null && units.Contains(e.UnitId.Value));
         var exp = await q.FirstOrDefaultAsync(e => e.ExpenseId == id);
         if (exp == null) return NotFound();
+        if (!User.InScope(HttpContext, exp.UnitId)) return Forbid();
         if (string.IsNullOrWhiteSpace(dto.Category)) return BadRequest(new { message = "Category is required." });
         if (dto.Amount <= 0) return BadRequest(new { message = "Enter a valid amount." });
         if (!DateOnly.TryParse(dto.ExpenseDate, out var date)) return BadRequest(new { message = "Valid date is required." });
@@ -235,6 +236,7 @@ public class FinanceController : ControllerBase
         q = q.Where(e => e.UnitId != null && units.Contains(e.UnitId.Value));
         var exp = await q.FirstOrDefaultAsync(e => e.ExpenseId == id);
         if (exp == null) return NotFound();
+        if (!User.InScope(HttpContext, exp.UnitId)) return Forbid();
         _db.Expenses.Remove(exp);
         await _db.SaveChangesAsync();
         return NoContent();
@@ -443,7 +445,7 @@ public class FinanceController : ControllerBase
             AcademicYear = year,
             Notes = dto.Notes,
             CreatedBy = Uid(),
-            UnitId = User.UnitId()
+            UnitId = User.ActiveUnitId(HttpContext)
         };
         _db.Budgets.Add(budget);
         await _db.SaveChangesAsync();
@@ -457,6 +459,7 @@ public class FinanceController : ControllerBase
     {
         var b = await Scoped().FirstOrDefaultAsync(x => x.BudgetId == id);
         if (b == null) return NotFound();
+        if (!User.InScope(HttpContext, b.UnitId)) return Forbid();
         if (string.IsNullOrWhiteSpace(dto.Category))
             return BadRequest(new { message = "Category is required." });
         if (dto.PlannedAmount < 0)
@@ -477,6 +480,7 @@ public class FinanceController : ControllerBase
     {
         var b = await Scoped().FirstOrDefaultAsync(x => x.BudgetId == id);
         if (b == null) return NotFound();
+        if (!User.InScope(HttpContext, b.UnitId)) return Forbid();
         _db.Budgets.Remove(b);
         await _db.SaveChangesAsync();
         return NoContent();

@@ -40,8 +40,13 @@ export function AuthProvider({ children }) {
   const login = useCallback((userData) => {
     localStorage.setItem('token', userData.token);
     localStorage.setItem('user', JSON.stringify(userData));
-    // Multi-unit: remember which unit this session is viewing + the units the
-    // user may switch between. The active unit drives the whole app's scoping.
+    // Multi-unit: ALWAYS clear the previous session's unit keys first so a
+    // different user on the same browser can never inherit a stale active unit.
+    localStorage.removeItem('active_unit');
+    localStorage.removeItem('user_units');
+    // The active unit drives the whole app's scoping. Set it whenever the login
+    // response carries it (including single-unit users, so the X-Unit-Id header
+    // always goes out).
     if (userData.activeUnitId != null) localStorage.setItem('active_unit', String(userData.activeUnitId));
     if (Array.isArray(userData.units)) localStorage.setItem('user_units', JSON.stringify(userData.units));
     setUser(userData);

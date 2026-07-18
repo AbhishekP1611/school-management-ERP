@@ -87,7 +87,7 @@ public class CalendarController : ControllerBase
             endDate = ed;
 
         var (uid, uname) = Me();
-        var unitId = User.UnitId();
+        var unitId = User.ActiveUnitId(HttpContext);
         var target = string.IsNullOrWhiteSpace(dto.TargetType) ? "All" : dto.TargetType;
 
         var holiday = new Holiday
@@ -143,8 +143,8 @@ public class CalendarController : ControllerBase
     {
         var h = await _db.Holidays.FindAsync(id);
         if (h == null) return NotFound();
-        // unit guard: user can only delete holidays in units they may access
-        if (!User.CanAccessUnit(h.UnitId))
+        // unit guard: user can only delete holidays in the active request scope
+        if (!User.InScope(HttpContext, h.UnitId))
             return Forbid();
         _db.Holidays.Remove(h);
         await _db.SaveChangesAsync();

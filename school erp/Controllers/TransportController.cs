@@ -42,8 +42,10 @@ public class TransportController : ControllerBase
     [RequirePermission("Transport", PermAction.View)]
     public async Task<IActionResult> GetRoutes()
     {
+        var units = User.ScopeUnitIds(HttpContext);
         var buses = await _db.Buses
             .Where(b => b.IsActive)
+            .Where(b => b.UnitId != null && units.Contains(b.UnitId.Value))
             .Include(b => b.Stops)
             .Include(b => b.Assignments)
             .ToListAsync();
@@ -81,13 +83,14 @@ public class TransportController : ControllerBase
         {
             if (await _db.Buses.AnyAsync(b => b.BusNumber == dto.BusNumber))
                 return BadRequest(new { message = "Bus number already exists." });
-            bus = new Bus();
+            bus = new Bus { UnitId = User.ActiveUnitId(HttpContext) };
             _db.Buses.Add(bus);
         }
         else
         {
             bus = await _db.Buses.Include(b => b.Stops).FirstOrDefaultAsync(b => b.BusId == dto.BusId)
                   ?? throw new InvalidOperationException("Bus not found");
+            if (!User.InScope(HttpContext, bus.UnitId)) return Forbid();
             // don't allow shrinking below assigned students
             int assigned = await _db.BusAssignments.CountAsync(a => a.BusId == bus.BusId);
             if (dto.Capacity < assigned)
@@ -123,6 +126,7 @@ public class TransportController : ControllerBase
     {
         var bus = await _db.Buses.FindAsync(id);
         if (bus == null) return NotFound();
+        if (!User.InScope(HttpContext, bus.UnitId)) return Forbid();
 
         // Safe-delete: block if students are assigned; else soft-delete (consistent with Buses).
         int assigned = await _db.BusAssignments.CountAsync(a => a.BusId == id);
@@ -139,7 +143,9 @@ public class TransportController : ControllerBase
     [RequirePermission("Transport", PermAction.View)]
     public async Task<IActionResult> GetAssignments()
     {
+        var units = User.ScopeUnitIds(HttpContext);
         var list = await _db.BusAssignments
+            .Where(a => a.Bus != null && a.Bus.UnitId != null && units.Contains(a.Bus.UnitId.Value))
             .Include(a => a.Student).ThenInclude(s => s!.Class)
             .Include(a => a.Bus)
             .Include(a => a.Stop)
@@ -162,9 +168,11 @@ public class TransportController : ControllerBase
     [RequirePermission("Transport", PermAction.View)]
     public async Task<IActionResult> Unassigned()
     {
+        var units = User.ScopeUnitIds(HttpContext);
         var assignedIds = await _db.BusAssignments.Select(a => a.StudentId).ToListAsync();
         var students = await _db.Students
             .Where(s => s.IsActive && !assignedIds.Contains(s.StudentId))
+            .Where(s => s.UnitId != null && units.Contains(s.UnitId.Value))
             .Include(s => s.Class)
             .OrderBy(s => s.FirstName)
             .Select(s => new { s.StudentId, name = s.FirstName + " " + s.LastName, s.AdmissionNo,
@@ -182,6 +190,12 @@ public class TransportController : ControllerBase
 
         var bus = await _db.Buses.Include(b => b.Assignments).FirstOrDefaultAsync(b => b.BusId == dto.BusId);
         if (bus == null) return BadRequest(new { message = "Bus not found." });
+        if (!User.InScope(HttpContext, bus.UnitId)) return Forbid();
+
+        var student = await _db.Students.FirstOrDefaultAsync(s => s.StudentId == dto.StudentId);
+        if (student == null) return BadRequest(new { message = "Student not found." });
+        if (!User.InScope(HttpContext, student.UnitId)) return Forbid();
+
         if (bus.Assignments.Count >= bus.Capacity)
             return BadRequest(new { message = "Bus is full." });
 
@@ -198,8 +212,9 @@ public class TransportController : ControllerBase
     [RequirePermission("Transport", PermAction.Delete)]
     public async Task<IActionResult> Unassign(int id)
     {
-        var a = await _db.BusAssignments.FindAsync(id);
+        var a = await _db.BusAssignments.Include(x => x.Bus).FirstOrDefaultAsync(x => x.AssignmentId == id);
         if (a == null) return NotFound();
+        if (!User.InScope(HttpContext, a.Bus != null ? a.Bus.UnitId : null)) return Forbid();
 
         _db.BusAssignments.Remove(a);
         await _db.SaveChangesAsync();

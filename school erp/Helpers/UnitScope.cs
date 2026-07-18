@@ -53,4 +53,23 @@ public static class UnitScope
             return new List<int> { active };
         return allowed;
     }
+
+    // The unit that NEW records should be stamped with = the active (switched)
+    // unit if valid, else the user's home unit. Writes must land in the unit the
+    // user is currently viewing, not their login/home unit.
+    public static int? ActiveUnitId(this ClaimsPrincipal user, HttpContext? http)
+    {
+        var allowed = user.AllowedUnitIds();
+        var header = http?.Request.Headers["X-Unit-Id"].FirstOrDefault();
+        if (int.TryParse(header, out var active) && allowed.Contains(active))
+            return active;
+        var home = user.UnitId();
+        if (home.HasValue && allowed.Contains(home.Value)) return home;
+        return allowed.Count > 0 ? allowed[0] : (int?)null;
+    }
+
+    // Guard for single-record read/update/delete: is this record's unit inside
+    // the current request's scope (the active unit, or all allowed units)?
+    public static bool InScope(this ClaimsPrincipal user, HttpContext? http, int? recordUnitId)
+        => recordUnitId.HasValue && user.ScopeUnitIds(http).Contains(recordUnitId.Value);
 }

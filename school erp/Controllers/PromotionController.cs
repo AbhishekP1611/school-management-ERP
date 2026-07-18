@@ -152,7 +152,7 @@ public class PromotionController : ControllerBase
                 var student = await _db.Students.Include(s => s.Class)
                     .FirstOrDefaultAsync(s => s.StudentId == row.StudentId && s.IsActive);
                 if (student == null) continue;
-                if (!User.CanAccessUnit(student.UnitId)) continue;
+                if (!User.InScope(HttpContext, student.UnitId)) continue;
 
                 var fromClassName = student.Class != null ? $"{student.Class.ClassName} {student.Class.Section}" : "";
                 var fromYear = student.AcademicYear;
@@ -333,7 +333,7 @@ public class PromotionController : ControllerBase
     {
         var rec = await _db.SupplementaryRecords.FindAsync(id);
         if (rec == null) return NotFound();
-        if (!User.CanAccessUnit(rec.UnitId)) return Forbid();
+        if (!User.InScope(HttpContext, rec.UnitId)) return Forbid();
 
         var status = dto.Status == "Pass" ? "Pass" : dto.Status == "Fail" ? "Fail" : null;
         if (status == null) return BadRequest(new { message = "Status must be Pass or Fail." });
@@ -402,7 +402,7 @@ public class PromotionController : ControllerBase
     {
         var student = await _db.Students.Include(s => s.Class).FirstOrDefaultAsync(s => s.StudentId == dto.StudentId && s.IsActive);
         if (student == null) return NotFound();
-        if (!User.CanAccessUnit(student.UnitId)) return Forbid();
+        if (!User.InScope(HttpContext, student.UnitId)) return Forbid();
 
         // guard: all supp for this year must be cleared (pass, none pending/fail)
         var supp = await _db.SupplementaryRecords.Where(s => s.StudentId == student.StudentId && s.AcademicYear == student.AcademicYear).ToListAsync();

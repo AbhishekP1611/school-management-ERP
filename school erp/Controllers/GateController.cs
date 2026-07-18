@@ -108,7 +108,7 @@ public class GateController : ControllerBase
 
         var type = string.IsNullOrWhiteSpace(dto.PersonType) ? "Visitor" : dto.PersonType;
         var (uid, _) = Me();
-        var unitId = User.UnitId();
+        var unitId = User.ActiveUnitId(HttpContext);
 
         // For Student/Staff, prevent a duplicate open "inside" record.
         if (type == "Student" && dto.StudentId.HasValue &&

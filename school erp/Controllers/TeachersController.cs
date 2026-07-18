@@ -69,6 +69,7 @@ public class TeachersController : ControllerBase
     {
         var t = await _db.Teachers.FindAsync(id);
         if (t == null) return NotFound();
+        if (!User.InScope(HttpContext, t.UnitId)) return Forbid();
 
         return Ok(new TeacherDto
         {
@@ -143,7 +144,7 @@ public class TeachersController : ControllerBase
             Category         = dto.Category,
             EmergencyContact = dto.EmergencyContact,
             AadharNo         = dto.AadharNo,
-            UnitId           = User.UnitId()
+            UnitId           = User.ActiveUnitId(HttpContext)
         };
 
         _db.Teachers.Add(teacher);
@@ -157,6 +158,7 @@ public class TeachersController : ControllerBase
     {
         var teacher = await _db.Teachers.FindAsync(id);
         if (teacher == null) return NotFound();
+        if (!User.InScope(HttpContext, teacher.UnitId)) return Forbid();
 
         teacher.EmployeeId     = dto.EmployeeId;
         teacher.FirstName      = dto.FirstName;
@@ -191,6 +193,7 @@ public class TeachersController : ControllerBase
     {
         var teacher = await _db.Teachers.FindAsync(id);
         if (teacher == null) return NotFound();
+        if (!User.InScope(HttpContext, teacher.UnitId)) return Forbid();
 
         // Safe-delete: block if this teacher is a class teacher of an active class.
         var cls = await _db.Classes.FirstOrDefaultAsync(c => c.ClassTeacherId == id && !c.IsDeleted);

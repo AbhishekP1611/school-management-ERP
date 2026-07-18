@@ -125,7 +125,7 @@ public class InventoryController : ControllerBase
             Condition      = string.IsNullOrWhiteSpace(dto.Condition) ? "Good" : dto.Condition,
             Location       = dto.Location,
             Remarks        = dto.Remarks,
-            UnitId         = User.UnitId()
+            UnitId         = User.ActiveUnitId(HttpContext)
         };
         _db.Assets.Add(asset);
         await _db.SaveChangesAsync();
@@ -139,6 +139,7 @@ public class InventoryController : ControllerBase
     {
         var asset = await _db.Assets.FirstOrDefaultAsync(a => a.AssetId == id && !a.IsDeleted);
         if (asset == null) return NotFound();
+        if (!User.InScope(HttpContext, asset.UnitId)) return Forbid();
 
         var purchase = dto.PurchaseDate != null ? DateOnly.Parse(dto.PurchaseDate) : (DateOnly?)null;
         DateOnly? warrantyUntil = dto.WarrantyUntil != null ? DateOnly.Parse(dto.WarrantyUntil) : null;
@@ -171,6 +172,7 @@ public class InventoryController : ControllerBase
     {
         var asset = await _db.Assets.FirstOrDefaultAsync(a => a.AssetId == id && !a.IsDeleted);
         if (asset == null) return NotFound();
+        if (!User.InScope(HttpContext, asset.UnitId)) return Forbid();
         asset.IsDeleted = true;
         await _db.SaveChangesAsync();
         return NoContent();

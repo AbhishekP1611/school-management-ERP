@@ -34,7 +34,7 @@ public class NoticesController : ControllerBase
             return BadRequest(new { message = "Title and message are required." });
 
         var (uid, uname, _) = Me();
-        var unitId = User.UnitId();
+        var unitId = User.ActiveUnitId(HttpContext);
         var schoolName = await _db.Units.Where(u => u.UnitId == unitId).Select(u => u.UnitName).FirstOrDefaultAsync()
                          ?? "School ERP";
 
@@ -150,8 +150,10 @@ public class NoticesController : ControllerBase
     public async Task<IActionResult> UnreadCount()
     {
         var (uid, _, role) = Me();
+        var units = User.ScopeUnitIds(HttpContext);
         var myNoticeIds = await _db.Notices
             .Where(n => (n.TargetRole == "All" || n.TargetRole == role) && !n.IsDeleted)
+            .Where(n => n.UnitId != null && units.Contains(n.UnitId.Value))
             .Select(n => n.NoticeId).ToListAsync();
         var readIds = await _db.NoticeReads.Where(r => r.UserId == uid).Select(r => r.NoticeId).ToListAsync();
         return Ok(new { count = myNoticeIds.Except(readIds).Count() });
@@ -162,8 +164,10 @@ public class NoticesController : ControllerBase
     public async Task<IActionResult> MarkRead()
     {
         var (uid, _, role) = Me();
+        var units = User.ScopeUnitIds(HttpContext);
         var myNoticeIds = await _db.Notices
             .Where(n => (n.TargetRole == "All" || n.TargetRole == role) && !n.IsDeleted)
+            .Where(n => n.UnitId != null && units.Contains(n.UnitId.Value))
             .Select(n => n.NoticeId).ToListAsync();
         var already = await _db.NoticeReads.Where(r => r.UserId == uid).Select(r => r.NoticeId).ToListAsync();
 
@@ -180,6 +184,7 @@ public class NoticesController : ControllerBase
     {
         var n = await _db.Notices.FindAsync(id);
         if (n == null) return NotFound();
+        if (!User.InScope(HttpContext, n.UnitId)) return Forbid();
         n.IsDeleted = true;   // soft delete
         await _db.SaveChangesAsync();
         return NoContent();

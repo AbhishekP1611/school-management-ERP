@@ -95,8 +95,11 @@ public class AttendanceController : ControllerBase
         if (targetDate > today)
             return Ok(new List<AttendanceDto>());
 
+        // unit-scope: only surface attendance rows belonging to units the request may see.
+        var units = User.ScopeUnitIds(HttpContext);
         var attendance = await _db.Attendances
             .Where(a => a.ReferenceType == referenceType && a.AttendanceDate == targetDate)
+            .Where(a => a.UnitId != null && units.Contains(a.UnitId.Value))
             .ToListAsync();
 
         // Past dates with no marked attendance stay empty (view-only history —
@@ -172,10 +175,13 @@ public class AttendanceController : ControllerBase
         var from = new DateOnly(year, month, 1);
         var to   = from.AddMonths(1).AddDays(-1);
 
+        // unit-scope: restrict the summary to units the request may see.
+        var units = User.ScopeUnitIds(HttpContext);
         var summaryQ = _db.Attendances
             .Where(a => a.ReferenceType == referenceType
                      && a.AttendanceDate >= from
-                     && a.AttendanceDate <= to);
+                     && a.AttendanceDate <= to)
+            .Where(a => a.UnitId != null && units.Contains(a.UnitId.Value));
 
         if (!string.IsNullOrWhiteSpace(academicYear))
             summaryQ = summaryQ.Where(a => a.AcademicYear == academicYear);
@@ -250,7 +256,7 @@ public class AttendanceController : ControllerBase
                     Remarks        = entry.Remarks,
                     AcademicYear   = AcademicYearHelper.FromDate(date),
                     MarkedBy       = markedBy > 0 ? markedBy : null,
-                    UnitId         = User.UnitId()
+                    UnitId         = User.ActiveUnitId(HttpContext)
                 });
             }
         }

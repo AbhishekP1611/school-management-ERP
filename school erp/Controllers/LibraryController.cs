@@ -54,7 +54,7 @@ public class LibraryController : ControllerBase
             Author      = dto.Author,
             Price       = dto.Price,
             UsableUntil = dto.UsableUntil != null ? DateOnly.Parse(dto.UsableUntil) : null,
-            UnitId      = User.UnitId()
+            UnitId      = User.ActiveUnitId(HttpContext)
         };
         _db.Books.Add(book);
         await _db.SaveChangesAsync();
@@ -67,6 +67,7 @@ public class LibraryController : ControllerBase
     {
         var book = await _db.Books.FindAsync(id);
         if (book == null) return NotFound();
+        if (!User.InScope(HttpContext, book.UnitId)) return Forbid();
         book.BookName    = dto.BookName;
         book.Author      = dto.Author;
         book.Price       = dto.Price;
@@ -81,6 +82,7 @@ public class LibraryController : ControllerBase
     {
         var book = await _db.Books.FindAsync(id);
         if (book == null) return NotFound();
+        if (!User.InScope(HttpContext, book.UnitId)) return Forbid();
         // block if currently issued (not returned)
         if (await _db.IssuedBooks.AnyAsync(i => i.BookId == id && i.ReturnDate == null))
             return BadRequest(new { message = "Cannot delete — the book is currently issued." });
@@ -94,8 +96,10 @@ public class LibraryController : ControllerBase
     [RequirePermission("Library", PermAction.View)]
     public async Task<IActionResult> GetIssued()
     {
+        var units = User.ScopeUnitIds(HttpContext);
         var list = await _db.IssuedBooks
             .Where(i => i.ReturnDate == null)
+            .Where(i => i.Book != null && i.Book.UnitId != null && units.Contains(i.Book.UnitId.Value))
             .Include(i => i.Book)
             .Include(i => i.Student)
             .OrderByDescending(i => i.IssueId)
@@ -123,6 +127,7 @@ public class LibraryController : ControllerBase
     {
         var book = await _db.Books.FindAsync(dto.BookId);
         if (book == null || book.IsDeleted) return BadRequest(new { message = "Book not found." });
+        if (!User.InScope(HttpContext, book.UnitId)) return Forbid();
         if (!book.IsAvailable) return BadRequest(new { message = "Book is not available." });
         if (book.UsableUntil != null && book.UsableUntil < Today)
             return BadRequest(new { message = "Book has passed its usable date and cannot be issued." });
@@ -147,6 +152,7 @@ public class LibraryController : ControllerBase
     {
         var issue = await _db.IssuedBooks.Include(i => i.Book).FirstOrDefaultAsync(i => i.IssueId == dto.IssueId);
         if (issue == null) return NotFound();
+        if (!User.InScope(HttpContext, issue.Book?.UnitId)) return Forbid();
         if (issue.ReturnDate != null) return BadRequest(new { message = "Already returned." });
 
         issue.ReturnDate = Today;
@@ -172,7 +178,9 @@ public class LibraryController : ControllerBase
     [RequirePermission("Library", PermAction.View)]
     public async Task<IActionResult> GetFines()
     {
+        var units = User.ScopeUnitIds(HttpContext);
         var list = await _db.FineDetails
+            .Where(f => f.Book != null && f.Book.UnitId != null && units.Contains(f.Book.UnitId.Value))
             .Include(f => f.Book)
             .Include(f => f.Student)
             .OrderByDescending(f => f.FineId)

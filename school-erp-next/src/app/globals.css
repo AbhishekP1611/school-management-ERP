@@ -2,6 +2,7 @@
 
 /* ── CSS Variables ─────────────────────────────────────────────── */
 :root {
+  color-scheme: light;   /* native controls render light by default */
   --primary:       #3b82f6;   /* light blue */
   --primary-dark:  #2563eb;
   --primary-light: #dbeafe;
@@ -44,6 +45,9 @@
   --row-hover:     #1b2b44;
   --topbar-bg:     rgba(11,20,36,0.85);
   --shadow:        0 4px 24px rgba(0,0,0,0.4);
+  /* Tell the browser to render native controls (select dropdowns, date pickers,
+     scrollbars) in DARK — fixes white option lists in dark mode. */
+  color-scheme: dark;
 }
 
 /* ── Accent themes ─────────────────────────────────────────────────
@@ -340,8 +344,9 @@ body {
   border: none; background: transparent; color: var(--primary-dark);
   font-size: 12px; font-weight: 600; cursor: pointer; outline: none;
   max-width: 260px; padding: 0 2px;
+  color-scheme: light dark;   /* browser renders the native option list per theme */
 }
-.topbar-unit-switch select option { color: var(--text-primary); background: var(--card-bg); font-weight: 500; }
+.topbar-unit-switch select option { color: var(--text-primary); background: var(--surface); font-weight: 500; }
 .topbar-unit-sa {
   background: linear-gradient(135deg, var(--primary), var(--primary-dark));
   color: #fff; padding: 1px 8px; border-radius: 12px; font-size: 10px; font-weight: 700;
@@ -1232,16 +1237,24 @@ select.glass-input option[value=""] { color: rgba(255,255,255,0.6); }
   box-shadow: 0 24px 60px rgba(0,0,0,0.18) !important;
   padding: 28px 28px 24px !important;
   max-width: 420px !important;
+  /* Follow the app theme (fixes white popups in dark mode). */
+  background: var(--surface) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-col) !important;
 }
 .swal2-title {
   font-family: 'Poppins', sans-serif !important;
   padding: 0 !important;
   margin-bottom: 6px !important;
+  color: var(--text-primary) !important;
 }
 .swal2-html-container {
   font-family: 'Poppins', sans-serif !important;
   margin: 4px 0 0 !important;
+  color: var(--text-muted) !important;
 }
+/* The dimmed backdrop behind the popup — darker in dark mode. */
+.swal2-container.swal2-backdrop-show { background: rgba(0,0,0,0.55) !important; }
 .swal2-icon {
   margin: 0 auto 16px !important;
   width: 60px !important;
@@ -1263,6 +1276,10 @@ select.glass-input option[value=""] { color: rgba(255,255,255,0.6); }
   border-radius: 10px !important;
   padding: 9px 22px !important;
   font-size: 13px !important;
+  /* theme-aware so it's visible in dark mode */
+  background: var(--surface-2, var(--bg-body)) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-col) !important;
 }
 .swal2-actions { gap: 10px !important; margin-top: 20px !important; }
 

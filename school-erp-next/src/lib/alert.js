@@ -30,11 +30,11 @@ export const showSuccess = (title, actionLabel) => {
   const label = actionLabel || actionFromTitle(title);
   return Swal.fire({
     icon: 'success',
-    title: `<span style="font-size:18px;font-weight:700;color:#1e293b">${title}</span>`,
+    title: `<span style="font-size:18px;font-weight:700;color:var(--text-primary)">${title}</span>`,
     html: username
-      ? `<div style="margin-top:8px;font-size:13px;color:#64748b">
+      ? `<div style="margin-top:8px;font-size:13px;color:var(--text-muted)">
            ${label} &nbsp;
-           <span style="font-weight:600;color:#1e293b">${username}</span>
+           <span style="font-weight:600;color:var(--text-primary)">${username}</span>
          </div>`
       : '',
     timer: 2000,
@@ -50,7 +50,7 @@ export const showSuccess = (title, actionLabel) => {
 export const showError = (title) => {
   return Swal.fire({
     icon: 'error',
-    title: `<span style="font-size:17px;font-weight:700;color:#1e293b">Error</span>`,
+    title: `<span style="font-size:17px;font-weight:700;color:var(--text-primary)">Error</span>`,
     html: `<div style="font-size:14px;color:#ef4444">${title}</div>`,
     timer: 2500,
     timerProgressBar: true,
@@ -66,12 +66,12 @@ export const confirmSave = async (title = 'Save Changes?', text = 'Do you want t
   const { username } = getCurrentUser();
   const result = await Swal.fire({
     icon: 'question',
-    title: `<span style="font-size:17px;font-weight:700;color:#1e293b">${title}</span>`,
+    title: `<span style="font-size:17px;font-weight:700;color:var(--text-primary)">${title}</span>`,
     html: `
-      <div style="font-size:13px;color:#64748b;margin-bottom:10px">${text}</div>
+      <div style="font-size:13px;color:var(--text-muted);margin-bottom:10px">${text}</div>
       ${username ? `
-      <div style="font-size:12px;color:#94a3b8;border-top:1px solid #f1f5f9;padding-top:10px;margin-top:5px">
-        Saving as &nbsp;<strong style="color:#1e293b">${username}</strong>
+      <div style="font-size:12px;color:var(--text-muted);border-top:1px solid var(--border-col);padding-top:10px;margin-top:5px">
+        Saving as &nbsp;<strong style="color:var(--text-primary)">${username}</strong>
       </div>` : ''}
     `,
     showCancelButton: true,
@@ -98,13 +98,12 @@ export const confirmAction = async (
 ) => {
   const result = await Swal.fire({
     icon: 'warning',
-    title: `<span style="font-size:17px;font-weight:700;color:#1e293b">${title}</span>`,
-    html: `<div style="font-size:13px;color:#64748b">${text}</div>`,
+    title: `<span style="font-size:17px;font-weight:700;color:var(--text-primary)">${title}</span>`,
+    html: `<div style="font-size:13px;color:var(--text-muted)">${text}</div>`,
     showCancelButton: true,
     confirmButtonText: confirmText,
     cancelButtonText: 'Cancel',
     confirmButtonColor: confirmColor,
-    cancelButtonColor: '#94a3b8',
     customClass: {
       popup: 'swal-custom-popup',
     },
@@ -117,19 +116,18 @@ export const confirmLogout = async () => {
   const { username } = getCurrentUser();
   const result = await Swal.fire({
     icon: 'question',
-    title: `<span style="font-size:17px;font-weight:700;color:#1e293b">Logout?</span>`,
+    title: `<span style="font-size:17px;font-weight:700;color:var(--text-primary)">Logout?</span>`,
     html: `
-      <div style="font-size:13px;color:#64748b;margin-bottom:10px">Are you sure you want to sign out?</div>
+      <div style="font-size:13px;color:var(--text-muted);margin-bottom:10px">Are you sure you want to sign out?</div>
       ${username ? `
-      <div style="font-size:12px;color:#94a3b8;border-top:1px solid #f1f5f9;padding-top:10px;margin-top:5px">
-        Signing out as &nbsp;<strong style="color:#1e293b">${username}</strong>
+      <div style="font-size:12px;color:var(--text-muted);border-top:1px solid var(--border-col);padding-top:10px;margin-top:5px">
+        Signing out as &nbsp;<strong style="color:var(--text-primary)">${username}</strong>
       </div>` : ''}
     `,
     showCancelButton: true,
     confirmButtonText: '🚪 Yes, Logout',
     cancelButtonText: '✖ Cancel',
     confirmButtonColor: '#ef4444',
-    cancelButtonColor: '#94a3b8',
     customClass: {
       popup: 'swal-custom-popup',
       confirmButton: 'swal-confirm-btn',

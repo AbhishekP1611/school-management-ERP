@@ -94,6 +94,8 @@ public class UsersController : ControllerBase
     {
         var user = await _db.Users.FindAsync(id);
         if (user == null) return NotFound();
+        // Can't edit a user outside your active unit scope.
+        if (!User.InScope(HttpContext, user.UnitId)) return Forbid();
 
         if (user.Username != dto.Username &&
             await _db.Users.AnyAsync(u => u.Username == dto.Username && u.UserId != id))
@@ -146,6 +148,8 @@ public class UsersController : ControllerBase
     {
         var user = await _db.Users.FindAsync(id);
         if (user == null) return NotFound();
+        // Can't delete a user outside your active unit scope.
+        if (!User.InScope(HttpContext, user.UnitId)) return Forbid();
 
         // Lockout protection (pure-permission, not role-based): don't allow removing the
         // LAST active user who can manage the Users module — otherwise nobody could ever

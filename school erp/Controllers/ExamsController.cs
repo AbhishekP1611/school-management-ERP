@@ -67,7 +67,7 @@ public class ExamsController : ControllerBase
         if (dto.Subjects == null || dto.Subjects.Count == 0)
             return BadRequest(new { message = "Add at least one subject with an exam date." });
 
-        var exam = new Exam { ExamName = dto.ExamName, ClassId = dto.ClassId, AcademicYear = AcademicYearHelper.Current(), UnitId = User.UnitId() };
+        var exam = new Exam { ExamName = dto.ExamName, ClassId = dto.ClassId, AcademicYear = AcademicYearHelper.Current(), UnitId = User.ActiveUnitId(HttpContext) };
         _db.Exams.Add(exam);
         await _db.SaveChangesAsync();
 
@@ -91,8 +91,11 @@ public class ExamsController : ControllerBase
     [RequirePermission("Academics", PermAction.Delete)]
     public async Task<IActionResult> DeleteSubject(int examSubjectId)
     {
-        var es = await _db.ExamSubjects.FindAsync(examSubjectId);
+        var es = await _db.ExamSubjects.Include(x => x.Exam).FirstOrDefaultAsync(x => x.ExamSubjectId == examSubjectId);
         if (es == null) return NotFound();
+        if (!User.InScope(HttpContext, es.Exam?.UnitId)) return Forbid();
+        if (await _db.Results.AnyAsync(r => r.ExamSubjectId == examSubjectId))
+            return BadRequest(new { message = "This exam has results — cannot delete." });
         _db.ExamSubjects.Remove(es);
         await _db.SaveChangesAsync();
         return NoContent();
@@ -105,6 +108,7 @@ public class ExamsController : ControllerBase
     {
         var exam = await _db.Exams.FindAsync(id);
         if (exam == null) return NotFound();
+        if (!User.InScope(HttpContext, exam.UnitId)) return Forbid();
         exam.IsDeleted = true;   // soft delete — keeps subjects + entered results safe
         await _db.SaveChangesAsync();
         return NoContent();

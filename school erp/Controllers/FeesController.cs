@@ -73,7 +73,7 @@ public class FeesController : ControllerBase
             Status         = dto.Status,
             Remarks        = dto.Remarks,
             AcademicYear   = AcademicYearHelper.FromDate(paymentDate ?? dueDate ?? DateOnly.FromDateTime(DateTime.UtcNow)),
-            UnitId         = User.UnitId()
+            UnitId         = User.ActiveUnitId(HttpContext)
         };
 
         _db.Fees.Add(fee);
@@ -87,6 +87,7 @@ public class FeesController : ControllerBase
     {
         var fee = await _db.Fees.FindAsync(id);
         if (fee == null) return NotFound();
+        if (!User.InScope(HttpContext, fee.UnitId)) return Forbid();
 
         fee.FeeType        = dto.FeeType;
         fee.Amount         = dto.Amount;
@@ -111,6 +112,7 @@ public class FeesController : ControllerBase
     {
         var fee = await _db.Fees.FindAsync(id);
         if (fee == null) return NotFound();
+        if (!User.InScope(HttpContext, fee.UnitId)) return Forbid();
         fee.IsDeleted = true;   // soft delete — financial record stays safe
         await _db.SaveChangesAsync();
         return NoContent();

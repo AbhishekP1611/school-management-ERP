@@ -28,6 +28,9 @@ public class ResultsController : ControllerBase
             .FirstOrDefaultAsync(x => x.ExamSubjectId == examSubjectId);
         if (es == null) return NotFound(new { message = "Exam subject not found." });
 
+        // Unit guard: the exam-subject belongs to an exam owned by a unit.
+        if (!User.InScope(HttpContext, es.Exam?.UnitId)) return Forbid();
+
         var classId = es.Exam!.ClassId;
         var students = await _db.Students
             .Where(s => s.IsActive && s.ClassId == classId)
@@ -72,6 +75,13 @@ public class ResultsController : ControllerBase
     [RequirePermission("Academics", PermAction.Edit)]
     public async Task<IActionResult> SaveSubject([FromBody] SaveResultsDto dto)
     {
+        // Unit guard: only allow writing marks for an exam-subject whose exam is in scope.
+        var es = await _db.ExamSubjects
+            .Include(x => x.Exam)
+            .FirstOrDefaultAsync(x => x.ExamSubjectId == dto.ExamSubjectId);
+        if (es == null) return NotFound(new { message = "Exam subject not found." });
+        if (!User.InScope(HttpContext, es.Exam?.UnitId)) return Forbid();
+
         var existing = await _db.Results
             .Where(r => r.ExamSubjectId == dto.ExamSubjectId)
             .ToDictionaryAsync(r => r.StudentId);
@@ -103,8 +113,13 @@ public class ResultsController : ControllerBase
     [RequirePermission("Academics", PermAction.View)]
     public async Task<IActionResult> GetByStudent([FromQuery] int studentId, [FromQuery] string? year)
     {
+        // Unit filter: only marksheet rows whose exam belongs to an in-scope unit.
+        var units = User.ScopeUnitIds(HttpContext);
+
         var resultsQ = _db.Results
             .Where(r => r.StudentId == studentId)
+            .Where(r => r.ExamSubject!.Exam!.UnitId != null
+                        && units.Contains(r.ExamSubject.Exam.UnitId.Value))
             .Include(r => r.ExamSubject).ThenInclude(es => es!.Exam)
             .Include(r => r.ExamSubject).ThenInclude(es => es!.Subject)
             .AsQueryable();

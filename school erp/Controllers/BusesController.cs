@@ -55,7 +55,7 @@ public class BusesController : ControllerBase
             RCNumber    = dto.RCNumber,
             Capacity    = dto.Capacity,
             Route       = dto.Route,
-            UnitId      = User.UnitId()
+            UnitId      = User.ActiveUnitId(HttpContext)
         };
         _db.Buses.Add(bus);
         await _db.SaveChangesAsync();
@@ -68,6 +68,7 @@ public class BusesController : ControllerBase
     {
         var bus = await _db.Buses.FindAsync(id);
         if (bus == null) return NotFound();
+        if (!User.InScope(HttpContext, bus.UnitId)) return Forbid();
 
         bus.BusNumber   = dto.BusNumber;
         bus.DriverName  = dto.DriverName;
@@ -86,6 +87,7 @@ public class BusesController : ControllerBase
     {
         var bus = await _db.Buses.FindAsync(id);
         if (bus == null) return NotFound();
+        if (!User.InScope(HttpContext, bus.UnitId)) return Forbid();
 
         // Safe-delete: block if students are assigned to this bus.
         int assigned = await _db.BusAssignments.CountAsync(a => a.BusId == id);

@@ -61,6 +61,7 @@ public class ClassesController : ControllerBase
             .FirstOrDefaultAsync(x => x.ClassId == id);
 
         if (c == null) return NotFound();
+        if (!User.InScope(HttpContext, c.UnitId)) return Forbid();
         return Ok(new ClassDto
         {
             ClassId          = c.ClassId,
@@ -86,6 +87,7 @@ public class ClassesController : ControllerBase
             .Include(x => x.ClassTeacher)
             .FirstOrDefaultAsync(x => x.ClassId == id);
         if (c == null) return NotFound();
+        if (!User.InScope(HttpContext, c.UnitId)) return Forbid();
 
         var students = await _db.Students
             .Where(s => s.IsActive && s.ClassId == id)
@@ -153,7 +155,7 @@ public class ClassesController : ControllerBase
             RoomNumber     = dto.RoomNumber,
             Capacity       = dto.Capacity,
             Shift          = dto.Shift,
-            UnitId         = User.UnitId()
+            UnitId         = User.ActiveUnitId(HttpContext)
         };
 
         _db.Classes.Add(cls);
@@ -167,6 +169,7 @@ public class ClassesController : ControllerBase
     {
         var cls = await _db.Classes.FindAsync(id);
         if (cls == null) return NotFound();
+        if (!User.InScope(HttpContext, cls.UnitId)) return Forbid();
 
         // One teacher can be class-teacher of only ONE class (exclude this class).
         if (dto.ClassTeacherId.HasValue &&
@@ -192,6 +195,7 @@ public class ClassesController : ControllerBase
     {
         var cls = await _db.Classes.FindAsync(id);
         if (cls == null) return NotFound();
+        if (!User.InScope(HttpContext, cls.UnitId)) return Forbid();
 
         // ── Safe-delete: block if active dependents exist ──
         int activeStudents = await _db.Students.CountAsync(s => s.ClassId == id && s.IsActive);

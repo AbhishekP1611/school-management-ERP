@@ -30,7 +30,8 @@ function UsersInner() {
   useEffect(() => { load(); }, [showInactive]);
 
   // Load all units once (for the "units this user can access" multi-select).
-  useEffect(() => { API.get('/units').then((r) => setUnits(r.data || [])).catch(() => setUnits([])); }, []);
+  // Only ACTIVE units can be assigned to a user (inactive units are hidden).
+  useEffect(() => { API.get('/units').then((r) => setUnits((r.data || []).filter((u) => u.isActive))).catch(() => setUnits([])); }, []);
 
   const openForm = (u = null) => {
     setErrors({});

@@ -176,13 +176,18 @@ export default function StudentLookupBot({ onClose }) {
                     </div>
 
                     {weakness && !weakness.hasData && (
-                      <div className="bot-hint">{weakness.message}</div>
+                      <div className="bot-hint" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                        <span>{weakness.message}</span>
+                        <button className="bot-ai-btn" onClick={runWeakness} disabled={weakLoading}>
+                          {weakLoading ? <><span className="loading-spinner" /> …</> : 'Try again'}
+                        </button>
+                      </div>
                     )}
 
-                    {weakness && weakness.hasData && (
+                    {weakness && weakness.hasData && Array.isArray(weakness.allSubjects) && (
                       <div className="bot-ai-body">
                         <div className="bot-ai-summary">
-                          {weakness.summary} <span className="bot-ai-overall">Overall {weakness.overallPct}%</span>
+                          {weakness.summary} <span className="bot-ai-overall">Overall {weakness.overallPct ?? 0}%</span>
                         </div>
 
                         {/* Subject bars, weakest first */}

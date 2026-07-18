@@ -157,6 +157,8 @@ public class StudentsController : ControllerBase
             .FirstOrDefaultAsync(x => x.StudentId == id);
 
         if (s == null) return NotFound();
+        // Unit guard: can't fetch a student outside the active unit scope.
+        if (!User.InScope(HttpContext, s.UnitId)) return Forbid();
 
         // A student's bus comes from BusAssignment (single source of truth).
         var busInfo = await _db.BusAssignments
@@ -274,7 +276,7 @@ public class StudentsController : ControllerBase
             MotherOccupation = dto.MotherOccupation,
             EmergencyContact = dto.EmergencyContact,
             IsActive         = dto.IsActive,
-            UnitId           = User.UnitId()   // scope the new student to the creator's unit
+            UnitId           = User.ActiveUnitId(HttpContext)   // stamp with the ACTIVE (switched) unit
         };
         // (bus is set via BusAssignment in SyncBusAssignment below, not on the student)
 
@@ -385,6 +387,7 @@ public class StudentsController : ControllerBase
     {
         var student = await _db.Students.FindAsync(id);
         if (student == null) return NotFound();
+        if (!User.InScope(HttpContext, student.UnitId)) return Forbid();
 
         student.AdmissionNo   = dto.AdmissionNo;
         student.RollNo        = dto.RollNo;
@@ -430,6 +433,7 @@ public class StudentsController : ControllerBase
     {
         var student = await _db.Students.FindAsync(id);
         if (student == null) return NotFound();
+        if (!User.InScope(HttpContext, student.UnitId)) return Forbid();
 
         student.IsActive = false;   // soft delete
         await _db.SaveChangesAsync();

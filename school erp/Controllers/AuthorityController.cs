@@ -228,6 +228,13 @@ public class AuthorityController : ControllerBase
     [RequirePermission("Users", PermAction.Edit)]
     public async Task<IActionResult> Save([FromBody] SaveAuthorityDto dto)
     {
+        // Guard: you can only set permissions for a user whose unit is in your
+        // active scope — no granting rights to users in units you can't access
+        // (and no editing users outside your reach). Prevents privilege escalation.
+        var target = await _db.Users.FindAsync(dto.UserId);
+        if (target == null) return NotFound(new { message = "User not found." });
+        if (!User.InScope(HttpContext, target.UnitId)) return Forbid();
+
         var existing = await _db.Authorities.Where(a => a.UserId == dto.UserId).ToListAsync();
 
         foreach (var row in dto.Permissions)

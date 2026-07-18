@@ -59,7 +59,7 @@ public class EventsController : ControllerBase
             EventType   = dto.EventType,
             IsPublished = dto.IsPublished,
             CreatedBy   = userId > 0 ? userId : null,
-            UnitId      = User.UnitId()
+            UnitId      = User.ActiveUnitId(HttpContext)
         };
 
         _db.Events.Add(ev);
@@ -73,6 +73,7 @@ public class EventsController : ControllerBase
     {
         var ev = await _db.Events.FindAsync(id);
         if (ev == null) return NotFound();
+        if (!User.InScope(HttpContext, ev.UnitId)) return Forbid();
 
         ev.EventTitle  = dto.EventTitle;
         ev.Description = dto.Description;
@@ -92,6 +93,7 @@ public class EventsController : ControllerBase
     {
         var ev = await _db.Events.FindAsync(id);
         if (ev == null) return NotFound();
+        if (!User.InScope(HttpContext, ev.UnitId)) return Forbid();
         ev.IsPublished = false;
         await _db.SaveChangesAsync();
         return NoContent();
